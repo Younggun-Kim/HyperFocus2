@@ -23,6 +23,7 @@ let project = Project(
                         "UIColorName": "",
                         "UIImageName": "",
                     ],
+                    "CFBundleDisplayName": "$(APP_DISPLAY_NAME)",
                 ]
             ),
             buildableFolders: [
