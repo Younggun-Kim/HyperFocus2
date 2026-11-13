@@ -2,7 +2,7 @@
 
 HyperFocus 앱을 [Tuist](https://tuist.dev) 기반 프로젝트로 다시 구성하는 리팩터링 저장소입니다.
 
-> 🚧 초기 단계입니다. 지금은 개발 환경(Tuist 버전 고정)만 갖춰져 있고, 매니페스트와 소스 코드는 아직 없습니다.
+> 🚧 1주차 진행 중입니다. 단일 타깃 앱을 `tuist generate`로 생성·빌드·테스트할 수 있고, Debug/Release 설정을 xcconfig로 분리했습니다. 모듈 분리는 2주차에 진행합니다.
 
 ## 목표
 
@@ -17,10 +17,11 @@ HyperFocus 앱을 [Tuist](https://tuist.dev) 기반 프로젝트로 다시 구�
 
 | 도구 | 버전 | 비고 |
 | --- | --- | --- |
-| macOS | TODO | `tuist generate`는 Xcode가 필요해서 macOS에서만 동작 |
-| Xcode | TODO | 팀원·CI와 같은 버전 사용 |
+| macOS | 26.6 | 개발에 사용한 버전. `tuist generate`는 Xcode가 필요해서 macOS에서만 동작 |
+| Xcode | 27.2 | 개발에 사용한 버전. 팀원·CI와 같은 버전 사용 |
 | [mise](https://mise.jdx.dev) | 최신 | Tuist 버전 관리 |
 | Tuist | `4.216.2` | `mise.toml`에 고정 |
+| iOS (최소 지원) | 18.0 | `Project.swift`의 `deploymentTargets` |
 
 ## 시작하기
 
@@ -33,12 +34,14 @@ cd HyperFocus_Refactoring
 mise install
 tuist version   # 4.216.2가 나오면 정상
 
-# 3. 외부 의존성 가져오기 (Tuist/Package.swift가 생긴 뒤부터)
+# 3. 외부 의존성 가져오기 (지금은 선언된 외부 의존성이 없음)
 tuist install
 
 # 4. Xcode 프로젝트 생성 후 열기
 tuist generate
 ```
+
+> `tuist version`이 다른 버전을 출력하면 셸에 mise가 활성화되어 있는지 확인하세요. `mise.toml`은 버전을 정할 뿐이고, 실제로 그 버전이 실행되게 하는 건 셸 설정(`mise activate`)입니다. `which -a tuist`로 어떤 `tuist`가 먼저 잡히는지 볼 수 있습니다.
 
 > 생성된 `.xcodeproj` / `.xcworkspace`는 커밋하지 않습니다. 직접 수정해도 다음 `tuist generate`에서 사라지니, 변경은 항상 매니페스트에서 합니다.
 
@@ -53,6 +56,17 @@ tuist generate
 | `tuist build` / `tuist test` | 빌드 / 테스트 (테스트는 변경된 타겟만 실행) |
 | `tuist cache` | 바이너리 캐시 데우기 |
 
+## 빌드 configuration
+
+| configuration | 홈 화면 앱 이름 | 설정 파일 |
+| --- | --- | --- |
+| Debug | HyperFocus개발 | `Configs/Debug.xcconfig` |
+| Release | HyperFocus | `Configs/Release.xcconfig` |
+
+- xcconfig는 앱 타깃(`HyperFocus`)에만 연결되어 있습니다. 테스트 타깃에는 적용되지 않습니다.
+- 값은 `xcconfig → 빌드 설정(APP_DISPLAY_NAME) → Info.plist(CFBundleDisplayName) → 앱` 순서로 흐릅니다.
+- Info.plist는 `Project.swift`의 `infoPlist`로 `Derived/InfoPlists/`에 생성됩니다. 생성물이니 직접 고치지 말고 매니페스트에서 수정합니다.
+
 ## Tuist 버전 관리
 
 ```bash
@@ -65,24 +79,31 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 
 ## 프로젝트 구조
 
-TODO: 매니페스트를 만든 뒤 채웁니다. 예상 구조는 아래와 같습니다.
-
 ```
 .
 ├── Tuist.swift              # 프로젝트 루트 표시 및 생성 옵션
 ├── Tuist/
-│   ├── Package.swift        # 외부 의존성 (SPM)
-│   └── ProjectDescriptionHelpers/
-├── Projects/                # TODO: App / Feature / Core / Shared 모듈
+│   └── Package.swift        # 외부 의존성 (SPM)
+├── Project.swift            # 앱(HyperFocus)·테스트(HyperFocusTests) 타깃 선언
+├── Configs/
+│   ├── Debug.xcconfig       # Debug 빌드 설정 (앱 타깃)
+│   └── Release.xcconfig     # Release 빌드 설정 (앱 타깃)
+├── Sources/                 # 앱 코드
+├── Resources/               # 에셋 카탈로그
+├── Tests/                   # 유닛 테스트 (Swift Testing)
 ├── docs/
-│   └── tuist-roadmap.md
+│   ├── tuist-roadmap.md
+│   └── blog/                # 주차별 학습 정리
 └── mise.toml                # Tuist 버전 고정
 ```
+
+2주차 모듈 분리 후에는 `Projects/`(App / Feature / Core / Shared)와 `Tuist/ProjectDescriptionHelpers/`가 추가될 예정입니다.
 
 ## 진행 상황
 
 - [x] mise로 Tuist 버전 고정
-- [ ] 단일 타겟 앱을 `tuist generate`로 빌드·실행
+- [x] 단일 타겟 앱을 `tuist generate`로 빌드·실행
+- [x] Debug/Release 설정을 xcconfig로 분리
 - [ ] 모듈 분리 및 `enforceExplicitDependencies` 적용
 - [ ] 바이너리 캐시·선택적 테스트 적용 및 시간 측정
 - [ ] CI 파이프라인 구성
@@ -90,3 +111,4 @@ TODO: 매니페스트를 만든 뒤 채웁니다. 예상 구조는 아래와 같
 ## 문서
 
 - [Tuist 로드맵: 매니페스트부터 CI까지](docs/tuist-roadmap.md)
+- [Tuist 1주차: 매니페스트로 iOS 프로젝트 만들기](docs/blog/week1-manifest.md)
