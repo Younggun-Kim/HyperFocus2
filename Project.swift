@@ -1,5 +1,7 @@
 import ProjectDescription
 
+let deploymentTargets: DeploymentTargets = .iOS("18.0")
+
 let project = Project(
     name: "HyperFocus",
     targets: [
@@ -8,6 +10,7 @@ let project = Project(
             destinations: .iOS,
             product: .app,
             bundleId: "com.hyperfocus.timer",
+            deploymentTargets: deploymentTargets,
             infoPlist: .extendingDefault(
                 with: [
                     "UILaunchScreen": [
@@ -27,6 +30,7 @@ let project = Project(
             destinations: .iOS,
             product: .unitTests,
             bundleId: "com.hyperfocus.timer.tests",
+            deploymentTargets: deploymentTargets,
             infoPlist: .default,
             buildableFolders: [
                 "./Tests"
