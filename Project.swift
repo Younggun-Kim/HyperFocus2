@@ -4,6 +4,12 @@ let deploymentTargets: DeploymentTargets = .iOS("18.0")
 
 let project = Project(
     name: "HyperFocus",
+    settings: .settings(
+        configurations: [
+            .debug(name: .debug, xcconfig: "./Configs/Debug.xcconfig"),
+            .release(name: .release, xcconfig: "./Configs/Release.xcconfig"),
+        ]
+    ),
     targets: [
         .target(
             name: "HyperFocus",
