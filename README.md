@@ -20,7 +20,7 @@ HyperFocus 앱을 [Tuist](https://tuist.dev) 기반 프로젝트로 다시 구�
 | macOS | TODO | `tuist generate`는 Xcode가 필요해서 macOS에서만 동작 |
 | Xcode | TODO | 팀원·CI와 같은 버전 사용 |
 | [mise](https://mise.jdx.dev) | 최신 | Tuist 버전 관리 |
-| Tuist | `4.212.0` | `mise.toml`에 고정 |
+| Tuist | `4.216.2` | `mise.toml`에 고정 |
 
 ## 시작하기
 
@@ -31,7 +31,7 @@ cd HyperFocus_Refactoring
 
 # 2. mise.toml에 고정된 Tuist 설치
 mise install
-tuist version   # 4.212.0이 나오면 정상
+tuist version   # 4.216.2가 나오면 정상
 
 # 3. 외부 의존성 가져오기 (Tuist/Package.swift가 생긴 뒤부터)
 tuist install
