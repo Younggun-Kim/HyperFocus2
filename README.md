@@ -21,7 +21,7 @@ HyperFocus 앱을 [Tuist](https://tuist.dev) 기반 프로젝트로 다시 구�
 | Xcode | 27.2 | 개발에 사용한 버전. 팀원·CI와 같은 버전 사용 |
 | [mise](https://mise.jdx.dev) | 최신 | Tuist 버전 관리 |
 | Tuist | `4.216.2` | `mise.toml`에 고정 |
-| iOS (최소 지원) | 18.0 | `Project.swift`의 `deploymentTargets` |
+| iOS (최소 지원) | 18.0 | 최신 버전이 아닌 기기를 쓰는 사용자까지 지원하면서 SwiftData를 쓰기 위해 선택. `Project.swift`의 `deploymentTargets` |
 
 ## 시작하기
 

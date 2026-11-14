@@ -335,9 +335,10 @@ The root directory is the closest directory that contains a Tuist or a .git dire
 
 ## 다음 할 일
 
-- [ ] 시뮬레이터 홈 화면에서 "HyperFocus개발" 직접 확인 (빌드된 앱의 Info.plist로는 확인 완료)
+- [x] 시뮬레이터 홈 화면에서 "HyperFocus개발" 확인
 - [ ] entitlements 다루기
-- [ ] 최소 iOS 18.0을 고른 이유를 README에 기록
+- [ ] UI 테스트 타깃 추가
+- [x] 최소 iOS 18.0을 고른 이유를 README에 기록: 최신 버전이 아닌 기기 사용자까지 지원하면서 SwiftData를 쓰기 위해
 - [ ] 2주차: 모듈 분리와 `enforceExplicitDependencies`
 
 ---
