@@ -490,7 +490,7 @@ The root directory is the closest directory that contains a Tuist or a .git dire
 - [x] 시뮬레이터 홈 화면에서 "HyperFocus개발" 확인
 - [x] entitlements 다루기: App Group을 xcconfig 값으로 환경별 분리
 - [x] UI 테스트 타깃 추가
-- [ ] 두 xcconfig 파일 끝에 줄바꿈 추가
+- [x] 두 xcconfig 파일 끝에 줄바꿈 추가
 - [x] 최소 iOS 18.0을 고른 이유를 README에 기록: 최신 버전이 아닌 기기 사용자까지 지원하면서 SwiftData를 쓰기 위해
 - [ ] 2주차: 모듈 분리와 `enforceExplicitDependencies`
 
