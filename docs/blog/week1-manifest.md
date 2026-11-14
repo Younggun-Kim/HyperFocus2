@@ -4,7 +4,7 @@
 
 - Tuist는 Swift 코드(매니페스트)로 Xcode 프로젝트를 선언하고, `tuist generate`로 만들어 냅니다. 1주차 목표였던 "명령 하나로 앱 빌드·실행"을 통과했습니다.
 - 매니페스트에서 생략한 값은 사라지지 않고 **Tuist나 Xcode가 채운 기본값**이 됩니다. 최소 iOS 버전을 빠뜨렸다가 실행할 시뮬레이터가 사라지는 일을 겪었습니다.
-- Debug 빌드와 Release 빌드가 홈 화면에서 다른 이름으로 보이도록 설정을 분리하면서, Xcode가 설정 값을 어디서 찾는지 정리했습니다.
+- Debug 빌드와 Release 빌드가 홈 화면 이름과 App Group을 각자 갖도록 설정을 분리하면서, Xcode가 설정 값을 어디서 찾는지 정리했습니다. UI 테스트 타깃까지 추가해 1주차 학습 항목을 모두 마쳤습니다.
 
 > 환경: Tuist 4.216.2(mise로 고정), Xcode 27.2, macOS 26.6
 
@@ -16,7 +16,7 @@
 
 - 기본 명령어: `tuist init`, `tuist generate`, `tuist edit`
 - 매니페스트 3종(`Project.swift`, `Workspace.swift`, `Tuist.swift`)의 역할
-- 타깃 구성: 앱, 유닛 테스트, 리소스, Info.plist
+- 타깃 구성: 앱, 유닛 테스트, UI 테스트, 리소스, Info.plist, entitlements
 - 설정 파일(xcconfig)로 Debug/Release 설정 분리
 
 이 글에서 자주 쓰는 용어를 먼저 정리합니다.
@@ -28,6 +28,7 @@
 | 빌드 설정 | Xcode Build Settings 화면의 `KEY = VALUE` 값들. 예: `PRODUCT_BUNDLE_IDENTIFIER` |
 | configuration | 같은 코드를 다른 빌드 설정으로 빌드하는 단위. 기본은 Debug와 Release |
 | xcconfig | 빌드 설정을 `KEY = VALUE` 형식으로 적어 두는 텍스트 파일 |
+| entitlements | 앱이 쓸 수 있는 시스템 기능(자격)을 선언하는 파일. 코드 서명에 함께 들어갑니다 |
 
 ---
 
@@ -279,6 +280,157 @@ configuration 목록도 같은 원리입니다. 프로젝트 레벨 `settings`�
 
 > 참고: `defaultSettings`는 `.recommended`, `.essential`, `.none` 중에서 고르고, `.recommended(excluding: [...])`로 특정 키만 뺄 수도 있습니다. `.none`으로 바꿔도 ⑤(플랫폼 기본값)는 그대로 남기 때문에, 기존 앱을 옮길 때 설정을 원본과 같게 맞추려면 원본의 값을 xcconfig로 옮겨야 합니다.
 
+### 7. entitlements: App Group을 환경별로 나누기
+
+#### entitlements와 App Group
+
+**entitlements**는 "이 앱이 이런 시스템 기능을 쓸 자격이 있다"는 선언입니다. 코드 서명할 때 앱에 함께 새겨지고, iOS는 이걸 보고 기능을 허락합니다. 앱에 대한 정보(이름, 버전)를 담는 Info.plist와 달리, entitlements는 애플이 허락해야 하는 자격입니다. 실기기에서는 개발자 계정의 프로비저닝 프로파일에도 같은 자격이 등록돼 있어야 합니다.
+
+자격이 필요할 것 같지만 필요 없는 경우도 있습니다. 타이머 종료를 알리는 **로컬 알림**은 entitlement 없이 사용자 허락만 받으면 되고, 원격 푸시(`aps-environment`)나 Time Sensitive 알림에는 entitlement가 필요합니다.
+
+이번에 다룬 건 **App Group**입니다. iOS에서 앱과 위젯은 각자 격리된 공간(샌드박스)에서 별도 프로세스로 실행되기 때문에, 위젯은 앱의 `UserDefaults`나 파일을 직접 읽을 수 없습니다. App Group은 같은 팀의 앱과 확장이 함께 쓰는 공유 공간입니다. 그룹을 쓰는 **모든 타깃**의 entitlements에 같은 그룹 ID를 선언해야 합니다.
+
+참고로 위젯은 앱 확장(App Extension)이라 별도의 번들 ID가 필요하고, 그 ID는 앱 번들 ID로 시작해야 합니다(예: `com.hyperfocus.timer.widget`). 선택이 아니라 애플의 규칙입니다.
+
+#### 원본 앱은 어떻게 쓰고 있었나
+
+리팩터링 전 원본 HyperFocus 앱을 조사해 보니, 앱이 집중 세션 상태·종료 시각·제목을 `UserDefaults(suiteName: appGroupID)`에 쓰고 위젯이 같은 곳에서 읽고 있었습니다. 그룹은 환경별로 두 개였습니다.
+
+| configuration | 앱 번들 ID | App Group |
+| --- | --- | --- |
+| Development | `com.hyperfocus.timer.dev` | `group.com.hyperfocus.timer.dev` |
+| Production | `com.hyperfocus.timer` | `group.com.hyperfocus.timer` |
+
+눈에 띈 점이 두 가지 있었습니다.
+
+- **같은 그룹 ID를 두 가지 방법으로 계산했습니다.** 앱은 컴파일 플래그(`#if DEVELOPMENT`)로 고르고, 위젯은 자기 번들 ID에서 `.widget`을 떼고 `group.`을 붙여 계산했습니다. 지금은 결과가 같지만, 한쪽 규칙만 바뀌면 앱과 위젯이 서로 다른 저장소를 보게 됩니다. 에러 없이 위젯에 데이터만 안 보이니 원인을 찾기 어렵습니다.
+- **entitlements 파일 하나에 두 그룹을 모두 선언했습니다.** 그래서 운영 빌드에도 개발용 그룹이 들어갑니다.
+
+#### 개선: 그룹 ID를 xcconfig 값 하나로
+
+지금까지 익힌 패턴을 그대로 썼습니다. 그룹 ID를 xcconfig에 두고, entitlements가 `$(...)`로 참조합니다.
+
+```
+// Configs/Debug.xcconfig
+APP_DISPLAY_NAME = HyperFocus개발
+APP_GROUP_ID = group.com.hyperfocus.timer.dev
+
+// Configs/Release.xcconfig
+APP_DISPLAY_NAME = HyperFocus
+APP_GROUP_ID = group.com.hyperfocus.timer
+```
+
+```swift
+// Project.swift — 앱 타깃 .target(...)의 buildableFolders 뒤
+entitlements: .dictionary([
+    "com.apple.security.application-groups": ["$(APP_GROUP_ID)"],
+]),
+```
+
+`entitlements:`는 `.dictionary`, `.file(path:)`, `.variable(...)` 세 형태가 있습니다. `.dictionary`는 Info.plist의 `.extendingDefault`처럼 Tuist가 파일을 생성합니다. 생성 결과는 Info.plist와 같은 구조였습니다.
+
+- Tuist가 `Derived/Entitlements/HyperFocus.entitlements`에 `$(APP_GROUP_ID)`가 그대로 들어 있는 틀을 만듭니다.
+- `CODE_SIGN_ENTITLEMENTS` 빌드 설정이 이 파일을 가리킵니다(Info.plist의 `INFOPLIST_FILE`과 같은 역할).
+- 값은 Xcode가 빌드할 때 채웁니다.
+
+| configuration | 빌드된 앱의 App Group |
+| --- | --- |
+| Debug | `group.com.hyperfocus.timer.dev` |
+| Release | `group.com.hyperfocus.timer` |
+
+이제 각 빌드에는 자기 환경의 그룹 하나만 들어갑니다. 나중에 위젯 타깃을 추가할 때 위젯도 같은 `$(APP_GROUP_ID)`를 읽게 하면, 원본에서 본 "두 가지 계산 방식" 문제가 구조적으로 사라집니다.
+
+#### 걸려 넘어진 곳
+
+```swift
+// ❌ 틀린 예 1: 위치
+entitlements: .dictionary([...]),
+buildableFolders: [...],
+```
+
+`entitlements:`는 `buildableFolders:` **뒤**에 와야 합니다. 매니페스트가 컴파일되지 않고 `argument 'buildableFolders' must precede argument 'entitlements'` 에러가 납니다.
+
+```swift
+// ❌ 틀린 예 2: 문자열
+"com.apple.security.application-groups": "$(APP_GROUP_ID)",
+```
+
+앱 하나가 여러 그룹에 속할 수 있어서 이 키의 값은 **항상 배열**입니다. 문자열로 써도 매니페스트는 컴파일되기 때문에 컴파일러가 잡아 주지 않습니다.
+
+**❌ 틀린 예 3: xcconfig 마지막 줄의 줄바꿈.** 실험 중에 `Debug.xcconfig` 끝에 줄바꿈이 없는 상태로 새 줄을 덧붙였더니 두 줄이 하나로 합쳐졌습니다.
+
+```
+APP_DISPLAY_NAME = HyperFocus개발APP_GROUP_ID = group.com.hyperfocus.timer.dev
+```
+
+그 결과 `APP_GROUP_ID`가 정의되지 않았고, Debug 빌드의 App Group이 **빈 문자열**이 됐습니다. **에러도 경고도 없었습니다.** 정의되지 않은 빌드 설정은 조용히 빈 값이 됩니다. 에디터의 "파일 끝에 줄바꿈 자동 추가" 옵션을 켜 두는 게 좋습니다.
+
+#### 확인 방법
+
+시뮬레이터 빌드에서는 `codesign -d --entitlements`로 확인하면 빈 결과가 나옵니다. 실제 적용된 값은 빌드 폴더의 `HyperFocus.app-Simulated.xcent` 파일에 있습니다.
+
+```bash
+plutil -p ~/Library/Developer/Xcode/DerivedData/HyperFocus-<임의 문자열>/Build/Intermediates.noindex/HyperFocus.build/Debug-iphonesimulator/HyperFocus.build/HyperFocus.app-Simulated.xcent
+```
+
+`<임의 문자열>`은 Xcode가 프로젝트마다 붙이는 값이라 사람마다 다릅니다. Xcode의 Product → Show Build Folder in Finder로 찾을 수 있습니다.
+
+#### 같은 패턴을 세 번 썼다
+
+| 빌드 설정 | 받는 곳 | Tuist가 만든 틀 |
+| --- | --- | --- |
+| `PRODUCT_BUNDLE_IDENTIFIER` | Info.plist `CFBundleIdentifier` | `Derived/InfoPlists/` |
+| `APP_DISPLAY_NAME` | Info.plist `CFBundleDisplayName` | `Derived/InfoPlists/` |
+| `APP_GROUP_ID` | entitlements `application-groups` | `Derived/Entitlements/` |
+
+### 8. UI 테스트 타깃 추가
+
+기존 유닛 테스트 타깃(`HyperFocusTests`)에 이어 UI 테스트 타깃을 추가했습니다. 두 테스트는 동작 방식이 다릅니다. 유닛 테스트는 앱 **안에서** 코드를 직접 호출하고(`@testable import`), UI 테스트는 **별도 프로세스에서** 앱을 실행해 사용자처럼 화면을 조작합니다. 그래서 UI 테스트에는 `@testable import`가 없고, 보통 XCTest의 `XCUIApplication`으로 작성합니다.
+
+```swift
+// UITests/HyperFocusUITests.swift
+import XCTest
+
+final class HyperFocusUITests: XCTestCase {
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+    }
+
+    func test_앱을_실행하면_인사말이_보인다() {
+        let app = XCUIApplication()
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Hello, World!"].waitForExistence(timeout: 5))
+    }
+}
+```
+
+앱이 뜨는 데 시간이 걸리기 때문에 `exists` 대신 `waitForExistence(timeout:)`로 기다립니다.
+
+```swift
+// Project.swift — targets 배열의 세 번째 타깃
+.target(
+    name: "HyperFocusUITests",
+    destinations: .iOS,
+    product: .uiTests,
+    bundleId: "com.hyperfocus.timer.uitests",
+    deploymentTargets: deploymentTargets,
+    infoPlist: .default,
+    buildableFolders: [
+        "./UITests"
+    ],
+    dependencies: [.target(name: "HyperFocus")]
+),
+```
+
+배포 타깃은 4절에서 상수로 빼 둔 `deploymentTargets`를 그대로 썼습니다. 상수로 뺀 덕분에 한 줄로 끝났습니다.
+
+**UI 테스트는 앱 코드를 import하지 않는데 왜 앱 타깃에 의존할까?** 테스트할 앱이 먼저 빌드돼 있어야 하기 때문입니다. 여기서 의존성은 "코드를 가져다 쓴다"가 아니라 "이 타깃보다 먼저 빌드하고, 테스트 대상 앱으로 연결한다"는 뜻입니다.
+
+**스킴은 직접 만들지 않았는데 테스트가 포함될까?** 포함됐습니다. 생성된 `HyperFocus` 스킴의 Test 항목에 `HyperFocusTests`와 `HyperFocusUITests`가 둘 다 들어 있었습니다. 스킴을 생략하면 Tuist가 앱 타깃의 스킴을 만들고, 앱에 의존하는 테스트 타깃을 넣어 주는 것으로 보입니다(결과를 보고 추론한 것이고 문서로 확인하지는 않았습니다).
+
+iOS 26.5 시뮬레이터에서 두 테스트가 모두 통과했습니다. 유닛 테스트는 0.001초, UI 테스트는 4.4초가 걸렸습니다. 앱을 실제로 띄우는 비용이 숫자로 보입니다.
+
 ---
 
 ## 곁가지 실험
@@ -327,7 +479,7 @@ The root directory is the closest directory that contains a Tuist or a .git dire
 
 - **생략한 값은 기본값이 됩니다.** 그 기본값은 Tuist가 프로젝트 파일에 써 넣은 것과 Xcode·SDK가 갖고 있는 것으로 나뉩니다.
 - **빌드 설정은 5장의 투명 시트입니다.** 위에서부터 처음 보이는 값이 이기고, 설정을 둘 곳은 "이 값이 누구에게 필요한가"로 정합니다.
-- **Tuist는 틀을 만들고, Xcode가 값을 채웁니다.** Info.plist의 `$(...)`는 빌드할 때 치환됩니다.
+- **Tuist는 틀을 만들고, Xcode가 값을 채웁니다.** Info.plist와 entitlements의 `$(...)`는 빌드할 때 치환되고, 정의되지 않은 값은 에러 없이 빈 문자열이 됩니다.
 - **매니페스트 한 줄이 Xcode에서 어디로 가는지 세어 보면 실수가 보입니다.** `IPHONEOS_DEPLOYMENT_TARGET`이 2개냐 4개냐로 빠진 타깃을 찾았습니다.
 - **추측보다 실험이 정확합니다.** 루트 탐색 규칙은 에러 메시지만 봐서는 알 수 없었습니다.
 
@@ -336,8 +488,9 @@ The root directory is the closest directory that contains a Tuist or a .git dire
 ## 다음 할 일
 
 - [x] 시뮬레이터 홈 화면에서 "HyperFocus개발" 확인
-- [ ] entitlements 다루기
-- [ ] UI 테스트 타깃 추가
+- [x] entitlements 다루기: App Group을 xcconfig 값으로 환경별 분리
+- [x] UI 테스트 타깃 추가
+- [ ] 두 xcconfig 파일 끝에 줄바꿈 추가
 - [x] 최소 iOS 18.0을 고른 이유를 README에 기록: 최신 버전이 아닌 기기 사용자까지 지원하면서 SwiftData를 쓰기 위해
 - [ ] 2주차: 모듈 분리와 `enforceExplicitDependencies`
 
@@ -385,6 +538,9 @@ let project = Project(
                 "./Sources",
                 "./Resources",
             ],
+            entitlements: .dictionary([
+                "com.apple.security.application-groups": ["$(APP_GROUP_ID)"],
+            ]),
             dependencies: [],
             settings: .settings(
                 configurations: [
@@ -405,6 +561,18 @@ let project = Project(
             ],
             dependencies: [.target(name: "HyperFocus")]
         ),
+        .target(
+            name: "HyperFocusUITests",
+            destinations: .iOS,
+            product: .uiTests,
+            bundleId: "com.hyperfocus.timer.uitests",
+            deploymentTargets: deploymentTargets,
+            infoPlist: .default,
+            buildableFolders: [
+                "./UITests"
+            ],
+            dependencies: [.target(name: "HyperFocus")]
+        ),
     ]
 )
 ```
@@ -414,16 +582,22 @@ let project = Project(
 ```
 // Configs/Debug.xcconfig
 APP_DISPLAY_NAME = HyperFocus개발
+APP_GROUP_ID = group.com.hyperfocus.timer.dev
 
 // Configs/Release.xcconfig
 APP_DISPLAY_NAME = HyperFocus
+APP_GROUP_ID = group.com.hyperfocus.timer
 ```
+
+### `UITests/HyperFocusUITests.swift`
+
+8절의 코드와 같습니다.
 
 ### 커밋할 파일과 커밋하지 않는 파일
 
 | 커밋함 | 커밋하지 않음 (생성물) |
 | --- | --- |
-| `Project.swift`, `Tuist.swift`, `Tuist/Package.swift`, `Configs/`, `Sources/`, `Resources/`, `Tests/`, `mise.toml` | `*.xcodeproj`, `*.xcworkspace`, `Derived/`, `graph.png` |
+| `Project.swift`, `Tuist.swift`, `Tuist/Package.swift`, `Configs/`, `Sources/`, `Resources/`, `Tests/`, `UITests/`, `mise.toml` | `*.xcodeproj`, `*.xcworkspace`, `Derived/`, `graph.png` |
 
 팀원은 커밋된 파일만 받아서 `mise install` → `tuist generate`로 같은 프로젝트를 만들 수 있습니다.
 
