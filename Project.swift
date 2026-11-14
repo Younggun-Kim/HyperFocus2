@@ -47,5 +47,17 @@ let project = Project(
             ],
             dependencies: [.target(name: "HyperFocus")]
         ),
+        .target(
+            name: "HyperFocusUITests",
+            destinations: .iOS,
+            product: .uiTests,
+            bundleId: "com.hyperfocus.timer.uitests",
+            deploymentTargets: deploymentTargets,
+            infoPlist: .default,
+            buildableFolders: [
+                "./UITests"
+            ],
+            dependencies: [.target(name: "HyperFocus")]
+        ),
     ]
 )
