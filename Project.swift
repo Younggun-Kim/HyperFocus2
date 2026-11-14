@@ -24,6 +24,9 @@ let project = Project(
                 "./Sources",
                 "./Resources",
             ],
+            entitlements: .dictionary([
+                "com.apple.security.application-groups": ["$(APP_GROUP_ID)"],
+            ]),
             dependencies: [],
             settings: .settings(
                 configurations: [
