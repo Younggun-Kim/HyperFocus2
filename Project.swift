@@ -21,8 +21,8 @@ let project = Project(
                 ]
             ),
             buildableFolders: [
-                "./Sources",
-                "./Resources",
+                "./App/Sources",
+                "./App/Resources",
             ],
             entitlements: .dictionary([
                 "com.apple.security.application-groups": ["$(APP_GROUP_ID)"],
@@ -30,8 +30,8 @@ let project = Project(
             dependencies: [],
             settings: .settings(
                 configurations: [
-                    .debug(name: .debug, xcconfig: "./Configs/Debug.xcconfig"),
-                    .release(name: .release, xcconfig: "./Configs/Release.xcconfig"),
+                    .debug(name: .debug, xcconfig: "./App/Configs/Debug.xcconfig"),
+                    .release(name: .release, xcconfig: "./App/Configs/Release.xcconfig"),
                 ]
             ),
         ),
@@ -43,7 +43,7 @@ let project = Project(
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
             buildableFolders: [
-                "./Tests"
+                "./App/Tests"
             ],
             dependencies: [.target(name: "HyperFocus")]
         ),
@@ -55,7 +55,7 @@ let project = Project(
             deploymentTargets: deploymentTargets,
             infoPlist: .default,
             buildableFolders: [
-                "./UITests"
+                "./App/UITests"
             ],
             dependencies: [.target(name: "HyperFocus")]
         ),
