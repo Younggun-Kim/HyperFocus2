@@ -60,8 +60,8 @@ tuist generate
 
 | configuration | 홈 화면 앱 이름 | App Group | 설정 파일 |
 | --- | --- | --- | --- |
-| Debug | HyperFocus개발 | `group.com.hyperfocus.timer.dev` | `Configs/Debug.xcconfig` |
-| Release | HyperFocus | `group.com.hyperfocus.timer` | `Configs/Release.xcconfig` |
+| Debug | HyperFocus개발 | `group.com.hyperfocus.timer.dev` | `App/Configs/Debug.xcconfig` |
+| Release | HyperFocus | `group.com.hyperfocus.timer` | `App/Configs/Release.xcconfig` |
 
 - xcconfig는 앱 타깃(`HyperFocus`)에만 연결되어 있습니다. 테스트 타깃에는 적용되지 않습니다.
 - 값은 `xcconfig → 빌드 설정(APP_DISPLAY_NAME) → Info.plist(CFBundleDisplayName) → 앱` 순서로 흐릅니다.
@@ -87,21 +87,25 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 ├── Tuist.swift              # 프로젝트 루트 표시 및 생성 옵션
 ├── Tuist/
 │   └── Package.swift        # 외부 의존성 (SPM)
-├── Project.swift            # 앱(HyperFocus)·유닛 테스트(HyperFocusTests)·UI 테스트(HyperFocusUITests) 타깃 선언
-├── Configs/
-│   ├── Debug.xcconfig       # Debug 빌드 설정 (앱 타깃)
-│   └── Release.xcconfig     # Release 빌드 설정 (앱 타깃)
-├── Sources/                 # 앱 코드
-├── Resources/               # 에셋 카탈로그
-├── Tests/                   # 유닛 테스트 (Swift Testing)
-├── UITests/                 # UI 테스트 (XCTest, XCUIApplication)
+├── Project.swift            # 모든 타깃 선언 (Mono-project: 앱·테스트·모듈)
+├── App/                     # 실행 단위(앱 타깃)
+│   ├── Sources/             # 앱 코드
+│   ├── Resources/           # 에셋 카탈로그
+│   ├── Tests/               # 유닛 테스트 (Swift Testing)
+│   ├── UITests/             # UI 테스트 (XCTest, XCUIApplication)
+│   └── Configs/
+│       ├── Debug.xcconfig   # Debug 빌드 설정 (앱 타깃)
+│       └── Release.xcconfig # Release 빌드 설정 (앱 타깃)
+├── Modules/                 # 라이브러리 모듈
+│   └── Core/
+│       └── Utils/Sources/   # Utils (staticFramework)
 ├── docs/
 │   ├── tuist-roadmap.md
 │   └── blog/                # 주차별 학습 정리
 └── mise.toml                # Tuist 버전 고정
 ```
 
-2주차 모듈 분리 후에는 `Projects/`(App / Feature / Core / Shared)와 `Tuist/ProjectDescriptionHelpers/`가 추가될 예정입니다.
+2주차 동안 `Modules/` 아래에 Domain / Data / Presentation과 Core·Shared 모듈이 추가되고, 반복되는 타깃 정의는 `Tuist/ProjectDescriptionHelpers/`로 추출할 예정입니다.
 
 ## 진행 상황
 
@@ -110,7 +114,7 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 - [x] Debug/Release 설정을 xcconfig로 분리
 - [x] App Group entitlements를 환경별로 분리
 - [x] UI 테스트 타깃 추가
-- [ ] 모듈 분리 및 `enforceExplicitDependencies` 적용
+- [ ] 모듈 분리 및 암묵적 의존 검사(`tuist inspect dependencies --only implicit`) 적용
 - [ ] 바이너리 캐시·선택적 테스트 적용 및 시간 측정
 - [ ] CI 파이프라인 구성
 
