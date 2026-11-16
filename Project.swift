@@ -85,6 +85,7 @@ let project = Project(
             ],
             dependencies: [
                 .external(name: "Dependencies"),
+                .external(name: "DependenciesMacros"),
             ]
         ),
         .target(

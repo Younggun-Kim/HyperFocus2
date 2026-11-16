@@ -5,15 +5,13 @@ import PackageDescription
     import struct ProjectDescription.PackageSettings
 
     let packageSettings = PackageSettings(
-        productTypes: [
-            "Dependencies": .framework,
-        ]
+        productTypes: [:]
     )
 #endif
 
 let package = Package(
     name: "HyperFocus",
     dependencies: [
-          .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.0.0")
+          .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.17.2")
     ]
 )
