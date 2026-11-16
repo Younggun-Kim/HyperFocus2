@@ -83,7 +83,9 @@ let project = Project(
             buildableFolders: [
                 "./Modules/Domain/Sources"
             ],
-            dependencies: []
+            dependencies: [
+                .external(name: "Dependencies"),
+            ]
         ),
         .target(
             name: "Data",
@@ -95,7 +97,10 @@ let project = Project(
             buildableFolders: [
                 "./Modules/Data/Sources"
             ],
-            dependencies: [.target(name: "Domain")]
+            dependencies: [
+                .target(name: "Domain"),
+                .external(name: "Dependencies"),
+            ]
         )
     ]
 )
