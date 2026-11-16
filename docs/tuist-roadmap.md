@@ -118,19 +118,13 @@ let project = Project(
 - 외부 라이브러리는 `Tuist/Package.swift`에 선언하고 `tuist install`로 가져오기
   - Tuist는 SPM을 의존성 해석에만 쓰고, 결과를 Xcode 프로젝트와 타겟으로 변환해서 설정 자유도를 높입니다.
   - 외부 패키지의 기본 프로덕트 타입은 정적 프레임워크이고, 필요하면 `PackageSettings`의 `productTypes`로 바꿉니다.
-- `enforceExplicitDependencies`: 선언하지 않은 암묵적 의존성을 잡아내는 옵션 (`Tuist.swift`의 generation options)
+- 암묵적 의존성 검사: `tuist inspect dependencies --only implicit`으로 선언하지 않은 의존을 잡아냅니다.
+  - 이전에 쓰던 `Tuist.swift`의 `enforceExplicitDependencies` 옵션은 Tuist 4.216.2 기준 deprecated입니다.
 - `ProjectDescriptionHelpers`로 반복되는 target 정의 추출
-- 계층 설계: Feature / Core / Shared, Interface / Implementation 분리
+- 계층 설계: Feature / Core / Shared, Interface / Implementation 분리 ([TMA](https://docs.tuist.dev/en/guides/features/projects/tma-architecture))
 
-```swift
-// Tuist.swift
-import ProjectDescription
-
-let tuist = Tuist(
-    project: .tuist(
-        generationOptions: .options(enforceExplicitDependencies: true)
-    )
-)
+```bash
+tuist inspect dependencies --only implicit
 ```
 
 ### 실습
@@ -247,7 +241,7 @@ Tuist 공식 문서에는 Flutter 전용 가이드가 없습니다. 다만 Flutt
 - [ ] Tuist 버전이 `mise.toml`로 고정되어 있는가
 - [ ] 외부 의존성이 `Tuist/Package.swift`에 모여 있는가
 - [ ] 매니페스트에 하드코딩된 반복 설정이 없는가 (helper로 추출)
-- [ ] 의존 방향이 한쪽으로만 흐르고 `enforceExplicitDependencies`를 통과하는가
+- [ ] 의존 방향이 한쪽으로만 흐르고 `tuist inspect dependencies --only implicit`을 통과하는가
 - [ ] 릴리스 아카이브는 `--no-binary-cache`로 생성했는가
 - [ ] 빌드·테스트 시간 비교 수치가 있는가
 - [ ] 새 팀원이 README만 보고 세팅할 수 있는가

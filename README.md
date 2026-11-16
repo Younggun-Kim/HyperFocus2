@@ -2,7 +2,7 @@
 
 HyperFocus 앱을 [Tuist](https://tuist.dev) 기반 프로젝트로 다시 구성하는 리팩터링 저장소입니다.
 
-> 🚧 1주차를 마쳤습니다. 앱·유닛 테스트·UI 테스트 타깃을 `tuist generate`로 생성·빌드·테스트할 수 있고, Debug/Release 설정(앱 이름, App Group)을 xcconfig로 분리했습니다. 모듈 분리는 2주차에 진행합니다.
+> 🚧 2주차 진행 중입니다. 1주차에 앱·유닛 테스트·UI 테스트 타깃과 Debug/Release 설정(앱 이름, App Group) 분리를 마쳤고, 2주차에는 [아키텍처](#아키텍처)를 확정하고 모듈을 나누고 있습니다.
 
 ## 목표
 
@@ -34,7 +34,7 @@ cd HyperFocus_Refactoring
 mise install
 tuist version   # 4.216.2가 나오면 정상
 
-# 3. 외부 의존성 가져오기 (지금은 선언된 외부 의존성이 없음)
+# 3. 외부 의존성 가져오기 (Tuist/Package.swift: swift-dependencies)
 tuist install
 
 # 4. Xcode 프로젝트 생성 후 열기
@@ -96,16 +96,63 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 │   └── Configs/
 │       ├── Debug.xcconfig   # Debug 빌드 설정 (앱 타깃)
 │       └── Release.xcconfig # Release 빌드 설정 (앱 타깃)
-├── Modules/                 # 라이브러리 모듈
-│   └── Core/
-│       └── Utils/Sources/   # Utils (staticFramework)
+├── Modules/                 # 라이브러리 모듈 (모두 staticFramework)
+│   ├── Core/
+│   │   ├── Utils/Sources/   # 공용 유틸
+│   │   └── Network/         # (예정) 통신 공통 코드
+│   ├── Data/Sources/
+│   │   ├── Client/          # public: XxxClient (선언 + liveValue, 같은 파일)
+│   │   ├── Model/           # public: 모델
+│   │   └── DataSource/      # internal: Local(SwiftData, UserDefaults), Remote(API)
+│   └── Features/            # (예정) 기능 모듈
+│       └── Timer/
+│           ├── Sources/     # Reducer + View
+│           ├── Example/     # 이 기능만 띄우는 개발용 앱 (mock 주입)
+│           └── Tests/
 ├── docs/
 │   ├── tuist-roadmap.md
 │   └── blog/                # 주차별 학습 정리
 └── mise.toml                # Tuist 버전 고정
 ```
 
-2주차 동안 `Modules/` 아래에 Domain / Data / Presentation과 Core·Shared 모듈이 추가되고, 반복되는 타깃 정의는 `Tuist/ProjectDescriptionHelpers/`로 추출할 예정입니다.
+반복되는 타깃 정의는 모듈이 늘어나면 `Tuist/ProjectDescriptionHelpers/`로 추출할 예정입니다.
+
+## 아키텍처
+
+[TMA(The Modular Architecture)](https://docs.tuist.dev/en/guides/features/projects/tma-architecture) 방식으로 기능(Feature)을 나누고, 데이터 접근은 Data 모듈 하나가 맡습니다. 처음에는 클린 아키텍처(Domain / Data / Presentation)로 설계했지만, 계층 사이의 순환 의존과 정적 링크 문제, 단순 위임만 하는 UseCase가 반복돼서 더 단순한 구조로 바꿨습니다.
+
+| 모듈 | 의존하는 대상 |
+| --- | --- |
+| App | Features |
+| `<Feature>Example`, `<Feature>Tests` | `<Feature>` |
+| `<Feature>` | Data, Core/Utils, ComposableArchitecture |
+| Data | Core/Network, Core/Utils, Dependencies |
+| Core | 내부 모듈 의존 없음 |
+
+### 규칙
+
+- **Feature끼리는 서로 의존하지 않습니다.** 화면 이동은 부모 Reducer가 자식의 위임(delegate) 액션을 받아서 처리합니다.
+- **Data의 공개 범위는 `Client`와 `Model`뿐입니다.** DataSource는 `internal`로 숨깁니다.
+- **클라이언트의 선언과 `liveValue`는 같은 파일에 둡니다.** Feature가 선언을 참조하면 실제 구현도 함께 링크되게 하기 위해서입니다.
+- **Example 앱은 mock을 명시적으로 주입합니다**(`prepareDependencies`). 주입하지 않으면 실제 SwiftData에 접근합니다.
+- 암묵적 의존은 `tuist inspect dependencies --only implicit`으로 검사합니다.
+
+### 로직을 둘 위치
+
+| 로직 | 위치 |
+| --- | --- |
+| 데이터와 묶인 규칙 | Data 클라이언트의 `liveValue` |
+| 화면 상태, 흐름, 화면 이동 | Reducer |
+| 여러 Feature가 함께 쓰는 순수 계산 | Data 모델의 extension 또는 순수 함수 |
+
+### 팀 규칙
+
+1. 경계는 struct 기반 클라이언트(`@Sendable` 클로저의 묶음)로 만들고, 이름은 `XxxClient`로 합니다.
+2. DataSource는 구체 타입으로 두고 swift-dependencies로 주입하지 않습니다.
+3. 경계의 함수 시그니처는 처음부터 `async throws`로 만듭니다.
+4. 모델은 `public struct`이고 `Sendable`, `Equatable`, `Identifiable`을 명시하며 `public init`을 직접 작성합니다.
+
+> Data를 `DataInterface`와 구현으로 나누는 건 Example 앱 빌드가 무거워지거나, Data를 고칠 때마다 Feature가 다시 빌드되는 게 느려질 때 다시 검토합니다.
 
 ## 진행 상황
 
@@ -122,3 +169,4 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 
 - [Tuist 로드맵: 매니페스트부터 CI까지](docs/tuist-roadmap.md)
 - [Tuist 1주차: 매니페스트로 iOS 프로젝트 만들기](docs/blog/week1-manifest.md)
+- [Tuist 2주차: 모듈 설계와 첫 번째 모듈 분리](docs/blog/week2-modularization.md)

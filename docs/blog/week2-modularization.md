@@ -3,7 +3,7 @@
 ## TL;DR
 
 - 2주차의 목표는 **모듈 경계와 의존 방향을 정하고, 그 규칙을 도구로 지키는 것**입니다. 화면 내부 패턴(MVVM 등)을 고르는 일과는 다른 문제입니다.
-- 클린 아키텍처를 기준으로 App / Presentation / Domain / Data와 Core, Shared 영역을 나누고, Mono-project로 가기로 했습니다.
+- 처음에는 클린 아키텍처를 기준으로 App / Presentation / Domain / Data와 Core, Shared 영역을 나눴습니다. 모듈을 실제로 붙여 보니 순환 의존, 정적 링크, 단순 위임 UseCase 문제가 반복돼서 **TMA 기반 Feature 모듈 + Data 모듈 하나**로 바꿨습니다. 프로젝트는 Mono-project로 갑니다.
 - 첫 모듈로 `Modules/Core/Utils`를 정적 프레임워크로 분리했습니다. `buildableFolders`가 폴더를 **재귀적으로** 포함하기 때문에 폴더 경계와 타깃 경계를 일치시켜야 한다는 점, static과 dynamic의 실제 차이를 확인했습니다.
 
 > 환경: Tuist 4.216.2(mise로 고정), Xcode 27.2, macOS 26.6
@@ -18,7 +18,7 @@
 
 | 주제 | 이 글에서 |
 | --- | --- |
-| 계층 설계: Feature / Core / Shared, 클린 아키텍처 | ✅ 1–3절 |
+| 계층 설계: Feature / Core / Shared, 클린 아키텍처에서 TMA로 | ✅ 1–3절 |
 | 모듈 분리 (첫 모듈) | ✅ 4–5절 |
 | 암묵적 의존성 검사 | ⏳ 다음 글 (모듈을 추가한 뒤 검증) |
 | 의존성 그래프와 `tuist graph` | ⏳ 다음 글 |
@@ -37,6 +37,8 @@
 | 클린 아키텍처 | 비즈니스 규칙(Domain)을 가운데 두고, 바깥 계층(UI, 데이터 저장)이 안쪽을 향해서만 의존하게 하는 설계 방식 |
 | Entity / UseCase / Repository | Domain의 구성 요소. 각각 핵심 데이터, 하나의 기능 흐름, 데이터 접근 인터페이스 |
 | Composition Root | 앱의 진입점에서 실제 구현체들을 조립(주입)하는 곳 |
+| TMA | The Modular Architecture. Tuist가 권장하는 구조로, 기능마다 모듈을 두고 각 기능에 Example 앱과 테스트 타깃을 붙입니다 |
+| Example 앱 | 기능 하나만 띄워 보는 개발용 앱. 배포하지 않습니다 |
 | static / dynamic framework | 빌드할 때 앱 바이너리에 합쳐지는 프레임워크 / 실행할 때 따로 로드되는 프레임워크 |
 
 ---
@@ -125,6 +127,57 @@ let repository: any TimerRepository = LiveTimerRepository()
 App이 모두에 의존하는 건 정상이지만, App은 **조립만** 해야 합니다. 그리고 매니페스트에는 App이 실제로 `import`하는 모듈만 선언합니다.
 
 > 지금은 화면(`ContentView`)이 아직 App에 있어서 App이 `Utils`를 직접 `import`합니다(App → Utils). 위 그림에는 없는 **과도기 상태**이고, Presentation 모듈을 만들면 이 의존은 Presentation으로 옮겨 갑니다.
+
+#### 설계 변경: 클린 아키텍처에서 TMA + Data로
+
+> 여기까지가 처음 세운 설계입니다. 실제로 Domain과 Data 모듈을 만들고 의존성 주입 라이브러리(swift-dependencies)를 붙여 보면서 구조를 다시 그렸습니다.
+
+**바꾼 이유**
+
+모듈을 하나씩 붙일 때마다 같은 종류의 문제가 반복됐습니다.
+
+| 문제 | 상황 |
+| --- | --- |
+| 순환 의존 | UseCase(Domain)가 Repository를 쓰고, Repository는 Entity(Domain)를 반환합니다. Repository의 계약과 구현을 한 모듈(Data)에 모으려 하면 `Domain → Data → Domain` 순환이 생깁니다. |
+| 정적 링크 위험 | 순환을 피하려면 계약은 Domain에, 구현은 Data에 나눠야 합니다. 그런데 App이 Data의 심볼을 하나도 참조하지 않으면, 정적 링크 과정에서 구현 코드가 빠질 수 있습니다. 이를 막으려면 App에 "Data를 참조하기 위한 코드"를 따로 둬야 합니다. |
+| 단순 위임 UseCase | "화면은 UseCase로만 데이터에 접근한다"는 규칙을 지키면, 단순 조회마다 Repository를 그대로 호출하는 UseCase가 생깁니다. |
+
+Entity, UseCase, Repository를 각각 모듈로 쪼개는 안도 검토했습니다. 순환은 사라졌지만, 이번에는 모듈 수가 늘어나고 계약과 구현이 떨어져 있어서 생기는 링크 문제가 그대로 남았습니다. 결국 **이 앱 규모에서는 계층이 주는 이점보다 계층을 유지하는 비용이 크다**고 판단했습니다.
+
+**최종 구조**
+
+[TMA(The Modular Architecture)](https://docs.tuist.dev/en/guides/features/projects/tma-architecture)로 기능을 나누고, 데이터 접근은 Data 모듈 하나가 맡습니다. Presentation이라는 계층 대신 **기능(Feature)마다 모듈**을 두고, 각 기능에는 그 기능만 띄워 보는 개발용 Example 앱과 테스트 타깃이 딸립니다.
+
+```mermaid
+graph TD
+    App --> TimerFeature
+    TimerExample --> TimerFeature
+    TimerTests --> TimerFeature
+    TimerFeature --> Data
+    TimerFeature --> CoreUtils
+    Data --> CoreNetwork
+    Data --> CoreUtils
+```
+
+| 모듈 | 담는 것 |
+| --- | --- |
+| Feature | 화면 코드. 다른 Feature는 의존하지 않습니다 |
+| Data | `public`: 데이터 접근 클라이언트(`XxxClient`)와 모델 · `internal`: DataSource(SwiftData, UserDefaults, API) |
+| Core | 직접 만든 기반 코드 (Network, Utils) |
+
+**지킬 규칙**
+
+| 규칙 | 막는 상황 |
+| --- | --- |
+| Feature ↛ 다른 Feature | 기능끼리 얽혀서 Example 앱으로 따로 띄울 수 없게 됨 |
+| DataSource는 `internal` | 화면이 SwiftData나 API 코드를 직접 다룸 |
+| 클라이언트의 선언과 실제 구현을 같은 파일에 둠 | 구현 코드가 정적 링크에서 빠짐. Feature가 선언을 참조하면 구현도 함께 링크됩니다 |
+
+**포기한 것**
+
+이 구조에는 의존성 역전이 없습니다. Feature를 빌드하면 Data와 그 아래 인프라 코드까지 함께 빌드됩니다. 테스트나 Example 앱에서 구현을 바꿔 끼우는 일은 의존성 주입 라이브러리로 해결하지만, **컴파일 시점의 분리**는 얻지 못합니다.
+
+Example 앱 빌드가 무거워지거나, Data를 고칠 때마다 Feature가 다시 빌드되는 게 느려지면 그때 Data를 `DataInterface`(선언)와 `Data`(구현)로 나눌 생각입니다. 그 판단은 3주차의 빌드 시간 측정 결과로 내립니다.
 
 ### 3. Mono-project vs Multi-project
 
@@ -404,6 +457,7 @@ buildableFolders: [.folder("\(appRoot)/Sources")]                     // ✅ .fo
 - **static의 비용은 "많이 쓰일수록"이 아니라 "여러 바이너리가 링크할수록" 커집니다.**
 - **에러 메시지의 경로를 먼저 읽습니다.** `Manifest not found`의 답은 메시지 안에 있었습니다.
 - **로드맵의 옵션도 쓰기 전에 설치된 버전에서 확인합니다.** `enforceExplicitDependencies`는 이미 deprecated였습니다.
+- **설계는 모듈을 실제로 붙여 봐야 검증됩니다.** 그림으로는 깔끔했던 계층이 순환 의존과 정적 링크 문제로 드러났습니다. 계층마다 유지 비용이 있으니, 앱 규모에 비해 계층이 무겁다면 덜어 내는 것도 설계입니다.
 
 ### 모듈을 나눌 때 체크리스트
 
@@ -417,7 +471,7 @@ buildableFolders: [.folder("\(appRoot)/Sources")]                     // ✅ .fo
 ## 다음 글에서 다룰 것
 
 - `Modules/Core/Network` 추가 → 두 타깃 정의를 비교해서 `ProjectDescriptionHelpers`로 추출
-- Domain, Data, Presentation 모듈 추가와 외부 라이브러리(`Tuist/Package.swift`) 연결
+- Data 모듈 정리와 첫 Feature 모듈(Timer + Example 앱 + 테스트) 추가, 외부 라이브러리(`Tuist/Package.swift`) 연결
 - `tuist graph`로 의존 방향 확인, `tuist inspect dependencies --only implicit`로 암묵적 의존 검사 → 2주차 통과 기준 점검
 - 3주차 준비: 모듈 분리 후 클린 빌드 시간 측정
 
