@@ -27,7 +27,9 @@ let project = Project(
             entitlements: .dictionary([
                 "com.apple.security.application-groups": ["$(APP_GROUP_ID)"],
             ]),
-            dependencies: [],
+            dependencies: [
+                .target(name: "Utils")
+            ],
             settings: .settings(
                 configurations: [
                     .debug(name: .debug, xcconfig: "./App/Configs/Debug.xcconfig"),
@@ -59,5 +61,17 @@ let project = Project(
             ],
             dependencies: [.target(name: "HyperFocus")]
         ),
+        .target(
+            name: "Utils",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "com.hyperfocus.timer.utils",
+            deploymentTargets: deploymentTargets,
+            infoPlist: .default,
+            buildableFolders: [
+                "./Modules/Core/Utils/Sources"
+            ],
+            dependencies: []
+        )
     ]
 )
