@@ -14,8 +14,11 @@ extension DependencyValues {
     }
 }
 
-// 기본값(테스트/프리뷰용) 명세
-extension SampleRepository: TestDependencyKey {
+// 실제 앱에서 쓰는 구현 + 테스트/프리뷰용 기본값
+extension SampleRepository: DependencyKey {
+    public static let liveValue = Self(
+        getSamples: { [] }
+    )
     public static let testValue = Self()
     public static let previewValue = Self()
 }
