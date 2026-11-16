@@ -28,7 +28,10 @@ let project = Project(
                 "com.apple.security.application-groups": ["$(APP_GROUP_ID)"],
             ]),
             dependencies: [
-                .target(name: "Utils")
+                .target(name: "Utils"),
+                .target(name: "Domain"),
+                .target(name: "Data"),
+                .external(name: "Dependencies"),
             ],
             settings: .settings(
                 configurations: [
