@@ -72,6 +72,30 @@ let project = Project(
                 "./Modules/Core/Utils/Sources"
             ],
             dependencies: []
+        ),
+        .target(
+            name: "Domain",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "com.hyperfocus.timer.domain",
+            deploymentTargets: deploymentTargets,
+            infoPlist: .default,
+            buildableFolders: [
+                "./Modules/Domain/Sources"
+            ],
+            dependencies: []
+        ),
+        .target(
+            name: "Data",
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "com.hyperfocus.timer.data",
+            deploymentTargets: deploymentTargets,
+            infoPlist: .default,
+            buildableFolders: [
+                "./Modules/Data/Sources"
+            ],
+            dependencies: [.target(name: "Domain")]
         )
     ]
 )
