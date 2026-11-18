@@ -133,6 +133,7 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 
 - **Feature끼리는 서로 의존하지 않습니다.** 화면 이동은 부모 Reducer가 자식의 위임(delegate) 액션을 받아서 처리합니다.
 - **Data의 공개 범위는 `Client`와 `Model`뿐입니다.** DataSource는 `internal`로 숨깁니다.
+- **별도의 Entity 계층은 두지 않습니다. Data의 `Model`이 그 역할을 합니다.** SwiftData `@Model`과 API DTO는 DataSource에 `internal`로 두고, 클라이언트의 `liveValue`에서 `Model`로 변환해 반환합니다. Feature 코드에 `import SwiftData`가 나타나면 경계가 새고 있다는 신호입니다.
 - **클라이언트의 선언과 `liveValue`는 같은 파일에 둡니다.** Feature가 선언을 참조하면 실제 구현도 함께 링크되게 하기 위해서입니다.
 - **Example 앱은 mock을 명시적으로 주입합니다**(`prepareDependencies`). 주입하지 않으면 실제 SwiftData에 접근합니다.
 - 암묵적 의존은 `tuist inspect dependencies --only implicit`으로 검사합니다.
@@ -150,9 +151,9 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 1. 경계는 struct 기반 클라이언트(`@Sendable` 클로저의 묶음)로 만들고, 이름은 `XxxClient`로 합니다.
 2. DataSource는 구체 타입으로 두고 swift-dependencies로 주입하지 않습니다.
 3. 경계의 함수 시그니처는 처음부터 `async throws`로 만듭니다.
-4. 모델은 `public struct`이고 `Sendable`, `Equatable`, `Identifiable`을 명시하며 `public init`을 직접 작성합니다.
+4. 모델은 `public struct`이고 `Sendable`, `Equatable`, `Identifiable`을 명시하며 `public init`을 직접 작성합니다. 저장 방식(SwiftData, API)에 의존하는 타입은 모델에 넣지 않습니다.
 
-> Data를 `DataInterface`와 구현으로 나누는 건 Example 앱 빌드가 무거워지거나, Data를 고칠 때마다 Feature가 다시 빌드되는 게 느려질 때 다시 검토합니다.
+> Data를 `DataInterface`와 구현으로 나누는 건 Example 앱 빌드가 무거워지거나, Data를 고칠 때마다 Feature가 다시 빌드되는 게 느려질 때 다시 검토합니다. 나눌 때는 `Model`과 클라이언트 선언을 `DataInterface`로 옮기고, 정적 링크에서 `liveValue`가 빠지지 않도록 앱 진입점에서 Data의 등록 함수(`DataModule.bootstrap()`)를 호출합니다.
 
 ## 진행 상황
 

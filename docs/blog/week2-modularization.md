@@ -172,12 +172,58 @@ graph TD
 | Feature ↛ 다른 Feature | 기능끼리 얽혀서 Example 앱으로 따로 띄울 수 없게 됨 |
 | DataSource는 `internal` | 화면이 SwiftData나 API 코드를 직접 다룸 |
 | 클라이언트의 선언과 실제 구현을 같은 파일에 둠 | 구현 코드가 정적 링크에서 빠짐. Feature가 선언을 참조하면 구현도 함께 링크됩니다 |
+| SwiftData `@Model`과 API DTO는 DataSource에 `internal`로 둠 | 화면이 저장 방식에 묶인 타입을 직접 다룸 |
+
+**Entity는 어디로 갔나**
+
+Domain 계층이 없으니 Entity도 따로 두지 않습니다. 대신 **Data의 `public` 모델이 Entity 역할**을 합니다. 클린 아키텍처에서 Entity를 쓰는 이유는 "저장 방식과 분리된 타입"을 갖기 위해서인데, 이 효과는 Entity가 Domain 모듈에 있어서가 아니라 **저장용 타입을 숨기는 규칙**에서 나옵니다.
+
+```swift
+// Data/Sources/Model: 저장 방식과 무관한 값 타입 (public)
+public struct Sample: Sendable, Equatable, Identifiable { ... }
+
+// Data/Sources/DataSource/Local: SwiftData 전용 (internal)
+@Model final class SampleRecord { ... }
+extension SampleRecord {
+    var toModel: Sample { ... }   // 변환은 Data 안에서만
+}
+
+// 클라이언트의 liveValue: 저장용 타입을 모델로 바꿔서 내보냄
+getSamples: { try dataSource.fetchAll().map(\.toModel) }
+```
+
+| | 클린 아키텍처 (Domain의 Entity) | TMA + Data (Data의 Model) |
+| --- | --- | --- |
+| 위치 | Domain | Data |
+| 저장 방식과 분리 | ✅ | ✅ `@Model`을 `internal`로 숨기면 똑같이 분리됨 |
+| Feature가 Data를 모름 | ✅ | ❌ Feature → Data |
+| 여러 Feature가 쓰는 순수 로직 | Entity의 extension | Model의 extension |
+
+잃는 것은 "Feature가 컴파일 시점에 Data를 모른다"는 점 하나이고, 이는 바로 아래 "포기한 것"과 같은 이야기입니다.
 
 **포기한 것**
 
 이 구조에는 의존성 역전이 없습니다. Feature를 빌드하면 Data와 그 아래 인프라 코드까지 함께 빌드됩니다. 테스트나 Example 앱에서 구현을 바꿔 끼우는 일은 의존성 주입 라이브러리로 해결하지만, **컴파일 시점의 분리**는 얻지 못합니다.
 
 Example 앱 빌드가 무거워지거나, Data를 고칠 때마다 Feature가 다시 빌드되는 게 느려지면 그때 Data를 `DataInterface`(선언)와 `Data`(구현)로 나눌 생각입니다. 그 판단은 3주차의 빌드 시간 측정 결과로 내립니다.
+
+나누게 되면 Model과 클라이언트 선언은 `DataInterface`로, `liveValue`는 `Data`로 갑니다. 그러면 앞에서 본 정적 링크 문제가 다시 생깁니다. 이때는 Data에 등록 함수를 두고 앱 진입점에서 한 번 호출해서 해결할 계획입니다.
+
+```swift
+// Data
+public enum DataModule {
+    public static func bootstrap() {
+        prepareDependencies {
+            $0.sampleClient = .liveValue   // 이 참조가 liveValue 코드를 링크에 포함시킴
+        }
+    }
+}
+
+// App
+init() { DataModule.bootstrap() }
+```
+
+빈 함수만 호출해서는 부족합니다. 정적 아카이브는 오브젝트 파일 단위로 링크되므로, `bootstrap()`이 각 `liveValue`를 직접 참조해야 그 파일이 함께 들어갑니다. 클라이언트를 추가할 때마다 여기에 한 줄을 추가해야 하는 비용이 생기는데, 이것도 "지금은 나누지 않는다"고 정한 이유 중 하나입니다.
 
 ### 3. Mono-project vs Multi-project
 
@@ -458,6 +504,7 @@ buildableFolders: [.folder("\(appRoot)/Sources")]                     // ✅ .fo
 - **에러 메시지의 경로를 먼저 읽습니다.** `Manifest not found`의 답은 메시지 안에 있었습니다.
 - **로드맵의 옵션도 쓰기 전에 설치된 버전에서 확인합니다.** `enforceExplicitDependencies`는 이미 deprecated였습니다.
 - **설계는 모듈을 실제로 붙여 봐야 검증됩니다.** 그림으로는 깔끔했던 계층이 순환 의존과 정적 링크 문제로 드러났습니다. 계층마다 유지 비용이 있으니, 앱 규모에 비해 계층이 무겁다면 덜어 내는 것도 설계입니다.
+- **Entity의 가치는 위치가 아니라 경계 규칙에서 나옵니다.** 저장용 타입(`@Model`)을 `internal`로 숨기면, Data의 모델만으로도 "저장 방식과 분리된 타입"을 얻을 수 있습니다.
 
 ### 모듈을 나눌 때 체크리스트
 
