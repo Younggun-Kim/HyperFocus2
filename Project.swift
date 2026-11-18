@@ -1,16 +1,16 @@
 import ProjectDescription
-
-let deploymentTargets: DeploymentTargets = .iOS("18.0")
+import ProjectDescriptionHelpers
 
 let project = Project(
     name: "HyperFocus",
     targets: [
+        // MARK: - App
         .target(
             name: "HyperFocus",
             destinations: .iOS,
             product: .app,
-            bundleId: "com.hyperfocus.timer",
-            deploymentTargets: deploymentTargets,
+            bundleId: Module.bundleIdPrefix,
+            deploymentTargets: Module.deploymentTargets,
             infoPlist: .extendingDefault(
                 with: [
                     "UILaunchScreen": [
@@ -28,10 +28,9 @@ let project = Project(
                 "com.apple.security.application-groups": ["$(APP_GROUP_ID)"],
             ]),
             dependencies: [
-                .target(name: "Utils"),
-                .target(name: "Domain"),
-                .target(name: "Data"),
-                .external(name: "Dependencies"),
+                .target(name: "FocusTimer"),
+                .target(name: "SessionHistory"),
+                .external(name: "ComposableArchitecture"),
             ],
             settings: .settings(
                 configurations: [
@@ -44,67 +43,56 @@ let project = Project(
             name: "HyperFocusTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "com.hyperfocus.timer.tests",
-            deploymentTargets: deploymentTargets,
+            bundleId: "\(Module.bundleIdPrefix).tests",
+            deploymentTargets: Module.deploymentTargets,
             infoPlist: .default,
             buildableFolders: [
                 "./App/Tests"
             ],
-            dependencies: [.target(name: "HyperFocus")]
+            dependencies: [
+                .target(name: "HyperFocus"),
+                .target(name: "Data"),
+                .external(name: "ComposableArchitecture"),
+            ]
         ),
         .target(
             name: "HyperFocusUITests",
             destinations: .iOS,
             product: .uiTests,
-            bundleId: "com.hyperfocus.timer.uitests",
-            deploymentTargets: deploymentTargets,
+            bundleId: "\(Module.bundleIdPrefix).uitests",
+            deploymentTargets: Module.deploymentTargets,
             infoPlist: .default,
             buildableFolders: [
                 "./App/UITests"
             ],
             dependencies: [.target(name: "HyperFocus")]
         ),
-        .target(
-            name: "Utils",
-            destinations: .iOS,
-            product: .staticFramework,
-            bundleId: "com.hyperfocus.timer.utils",
-            deploymentTargets: deploymentTargets,
-            infoPlist: .default,
-            buildableFolders: [
-                "./Modules/Core/Utils/Sources"
-            ],
-            dependencies: []
-        ),
-        .target(
-            name: "Domain",
-            destinations: .iOS,
-            product: .staticFramework,
-            bundleId: "com.hyperfocus.timer.domain",
-            deploymentTargets: deploymentTargets,
-            infoPlist: .default,
-            buildableFolders: [
-                "./Modules/Domain/Sources"
-            ],
+
+        // MARK: - Features
+    ]
+    + Target.feature(
+        name: "FocusTimer",
+        dependencies: [.target(name: "Utils")]
+    )
+    + Target.feature(
+        name: "SessionHistory",
+        dependencies: [.target(name: "Data")]
+    )
+    + [
+        // MARK: - Data
+        .module(
+            name: "Data",
+            path: "./Modules/Data",
             dependencies: [
                 .external(name: "Dependencies"),
                 .external(name: "DependenciesMacros"),
             ]
         ),
-        .target(
-            name: "Data",
-            destinations: .iOS,
-            product: .staticFramework,
-            bundleId: "com.hyperfocus.timer.data",
-            deploymentTargets: deploymentTargets,
-            infoPlist: .default,
-            buildableFolders: [
-                "./Modules/Data/Sources"
-            ],
-            dependencies: [
-                .target(name: "Domain"),
-                .external(name: "Dependencies"),
-            ]
-        )
+
+        // MARK: - Core
+        .module(
+            name: "Utils",
+            path: "./Modules/Core/Utils"
+        ),
     ]
 )

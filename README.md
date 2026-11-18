@@ -2,7 +2,7 @@
 
 HyperFocus 앱을 [Tuist](https://tuist.dev) 기반 프로젝트로 다시 구성하는 리팩터링 저장소입니다.
 
-> 🚧 2주차 진행 중입니다. 1주차에 앱·유닛 테스트·UI 테스트 타깃과 Debug/Release 설정(앱 이름, App Group) 분리를 마쳤고, 2주차에는 [아키텍처](#아키텍처)를 확정하고 모듈을 나누고 있습니다.
+> 🚧 2주차 진행 중입니다. 1주차에 앱·유닛 테스트·UI 테스트 타깃과 Debug/Release 설정(앱 이름, App Group) 분리를 마쳤고, 2주차에는 [아키텍처](#아키텍처)를 확정하고 Feature 2개(FocusTimer, SessionHistory)와 Data·Core/Utils 모듈로 나눈 뒤 암묵적 의존 검사를 통과했습니다.
 
 ## 목표
 
@@ -86,10 +86,12 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 .
 ├── Tuist.swift              # 프로젝트 루트 표시 및 생성 옵션
 ├── Tuist/
-│   └── Package.swift        # 외부 의존성 (SPM)
+│   ├── Package.swift        # 외부 의존성 (SPM: swift-dependencies, TCA)
+│   └── ProjectDescriptionHelpers/
+│       └── Module.swift     # Target.module(...), Target.feature(...) helper
 ├── Project.swift            # 모든 타깃 선언 (Mono-project: 앱·테스트·모듈)
 ├── App/                     # 실행 단위(앱 타깃)
-│   ├── Sources/             # 앱 코드
+│   ├── Sources/             # 앱 진입점, RootFeature(자식 Feature 조립)
 │   ├── Resources/           # 에셋 카탈로그
 │   ├── Tests/               # 유닛 테스트 (Swift Testing)
 │   ├── UITests/             # UI 테스트 (XCTest, XCUIApplication)
@@ -104,8 +106,8 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 │   │   ├── Client/          # public: XxxClient (선언 + liveValue, 같은 파일)
 │   │   ├── Model/           # public: 모델
 │   │   └── DataSource/      # internal: Local(SwiftData, UserDefaults), Remote(API)
-│   └── Features/            # (예정) 기능 모듈
-│       └── Timer/
+│   └── Features/            # 기능 모듈 (FocusTimer, SessionHistory)
+│       └── FocusTimer/
 │           ├── Sources/     # Reducer + View
 │           ├── Example/     # 이 기능만 띄우는 개발용 앱 (mock 주입)
 │           └── Tests/
@@ -115,7 +117,7 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 └── mise.toml                # Tuist 버전 고정
 ```
 
-반복되는 타깃 정의는 모듈이 늘어나면 `Tuist/ProjectDescriptionHelpers/`로 추출할 예정입니다.
+반복되는 타깃 정의는 `Tuist/ProjectDescriptionHelpers/Module.swift`로 추출했습니다. `Target.feature(name:dependencies:)` 한 줄이 Feature 프레임워크, `<Feature>Example` 앱, `<Feature>Tests`를 함께 만듭니다.
 
 ## 아키텍처
 
@@ -123,8 +125,8 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 
 | 모듈 | 의존하는 대상 |
 | --- | --- |
-| App | Features |
-| `<Feature>Example`, `<Feature>Tests` | `<Feature>` |
+| App | Features, ComposableArchitecture |
+| `<Feature>Example`, `<Feature>Tests` | `<Feature>`와 그 의존성 (mock 주입 시 Data를 직접 import) |
 | `<Feature>` | Data, Core/Utils, ComposableArchitecture |
 | Data | Core/Network, Core/Utils, Dependencies |
 | Core | 내부 모듈 의존 없음 |
@@ -162,7 +164,7 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 - [x] Debug/Release 설정을 xcconfig로 분리
 - [x] App Group entitlements를 환경별로 분리
 - [x] UI 테스트 타깃 추가
-- [ ] 모듈 분리 및 암묵적 의존 검사(`tuist inspect dependencies --only implicit`) 적용
+- [x] 모듈 분리 및 암묵적 의존 검사(`tuist inspect dependencies --only implicit`) 적용
 - [ ] 바이너리 캐시·선택적 테스트 적용 및 시간 측정
 - [ ] CI 파이프라인 구성
 

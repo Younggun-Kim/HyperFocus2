@@ -1,10 +1,22 @@
+import ComposableArchitecture
+import Data
 import Testing
 @testable import HyperFocus
 
-struct HyperFocusTests {
+@MainActor
+struct RootFeatureTests {
+    @Test func 타이머가_끝나면_기록을_다시_불러온다() async {
+        let samples = [Sample(id: "finished")]
+        let store = TestStore(initialState: RootFeature.State()) {
+            RootFeature()
+        } withDependencies: {
+            $0.sampleClient.getSamples = { samples }
+        }
 
-    @Test func example() async throws {
-        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
+        await store.send(.timer(.delegate(.sessionFinished(seconds: 1500))))
+        await store.receive(\.history.reload)
+        await store.receive(\.history.samplesResponse.success) {
+            $0.history.samples = samples
+        }
     }
-
 }

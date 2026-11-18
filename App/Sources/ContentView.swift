@@ -1,36 +1,27 @@
-import Dependencies
-import Domain
+import ComposableArchitecture
+import FocusTimer
+import SessionHistory
 import SwiftUI
-import Utils
 
-public struct ContentView: View {
-    @Dependency(\.sampleRepository) private var sampleRepository
+struct ContentView: View {
+    let store: StoreOf<RootFeature>
 
-    @State private var sampleStatus = "불러오는 중"
-    private var formattedTime = TimeFormatter.minuteSecond(from: 5400)
-
-    public init() {}
-
-    public var body: some View {
-        VStack(spacing: 8) {
-            Text("Hello, World!, \(formattedTime)")
-            Text(sampleStatus)
-        }
-        .padding()
-        .task {
-            do {
-                let samples = try await sampleRepository.getSamples()
-                sampleStatus = "liveValue OK: \(samples.count)개"
-            } catch {
-                sampleStatus = "liveValue 실패: \(error)"
+    var body: some View {
+        TabView {
+            Tab("타이머", systemImage: "timer") {
+                FocusTimerView(store: store.scope(state: \.timer, action: \.timer))
+            }
+            Tab("기록", systemImage: "list.bullet") {
+                SessionHistoryView(store: store.scope(state: \.history, action: \.history))
             }
         }
     }
 }
 
-
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-    }
+#Preview {
+    ContentView(
+        store: Store(initialState: RootFeature.State()) {
+            RootFeature()
+        }
+    )
 }

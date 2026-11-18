@@ -1,14 +1,15 @@
-# Tuist 2주차: 모듈 설계와 첫 번째 모듈 분리
+# Tuist 2주차: 모듈 설계부터 Feature 분리와 의존성 검증까지
 
 ## TL;DR
 
 - 2주차의 목표는 **모듈 경계와 의존 방향을 정하고, 그 규칙을 도구로 지키는 것**입니다. 화면 내부 패턴(MVVM 등)을 고르는 일과는 다른 문제입니다.
 - 처음에는 클린 아키텍처를 기준으로 App / Presentation / Domain / Data와 Core, Shared 영역을 나눴습니다. 모듈을 실제로 붙여 보니 순환 의존, 정적 링크, 단순 위임 UseCase 문제가 반복돼서 **TMA 기반 Feature 모듈 + Data 모듈 하나**로 바꿨습니다. 프로젝트는 Mono-project로 갑니다.
 - 첫 모듈로 `Modules/Core/Utils`를 정적 프레임워크로 분리했습니다. `buildableFolders`가 폴더를 **재귀적으로** 포함하기 때문에 폴더 경계와 타깃 경계를 일치시켜야 한다는 점, static과 dynamic의 실제 차이를 확인했습니다.
+- 마무리로 Feature 모듈 두 개(`FocusTimer`, `SessionHistory`)를 TCA로 만들고, 반복되는 타깃 정의를 `Target.feature(...)` helper로 추출했습니다. `tuist inspect dependencies --only implicit`가 Example·Tests 타깃의 선언 누락 5건을 잡아냈고, 고친 뒤 **2주차 통과 기준(한 방향 의존, 순환 없음, 암묵적 의존 없음)을 모두 충족**했습니다.
 
 > 환경: Tuist 4.216.2(mise로 고정), Xcode 27.2, macOS 26.6
 >
-> 🚧 2주차 진행 중에 쓴 글입니다. 설계와 첫 모듈(Utils)까지 정리했고, 나머지 모듈, `tuist graph`, helper 추출, 외부 의존성은 이어서 정리합니다.
+> 처음에는 설계와 첫 모듈(Utils)까지 쓰고, 2주차를 마치면서 6절(Feature 모듈, helper, 검증)을 덧붙였습니다.
 
 ---
 
@@ -20,10 +21,10 @@
 | --- | --- |
 | 계층 설계: Feature / Core / Shared, 클린 아키텍처에서 TMA로 | ✅ 1–3절 |
 | 모듈 분리 (첫 모듈) | ✅ 4–5절 |
-| 암묵적 의존성 검사 | ⏳ 다음 글 (모듈을 추가한 뒤 검증) |
-| 의존성 그래프와 `tuist graph` | ⏳ 다음 글 |
-| `ProjectDescriptionHelpers`로 반복되는 타깃 정의 추출 | ⏳ 다음 글 |
-| 외부 라이브러리를 `Tuist/Package.swift`로 추가 | ⏳ 다음 글 |
+| 외부 라이브러리를 `Tuist/Package.swift`로 추가 | ✅ 6절 (swift-dependencies, TCA) |
+| `ProjectDescriptionHelpers`로 반복되는 타깃 정의 추출 | ✅ 6절 |
+| 암묵적 의존성 검사 | ✅ 6절 |
+| 의존성 그래프와 `tuist graph` | ✅ 6절 |
 
 [1주차](week1-manifest.md)에는 앱·유닛 테스트·UI 테스트 타깃 세 개를 루트의 `Project.swift` 하나로 선언했고, 소스와 설정 파일(`Sources/`, `Configs/` 등)이 저장소 루트에 있었습니다. 2주차는 이 구조에서 출발합니다.
 
@@ -389,6 +390,185 @@ static이 크기를 키우는 건 **같은 static framework를 여러 바이너�
 
 ---
 
+### 6. 2주차 마무리: Feature 모듈, helper, 검증
+
+설계를 확정한 뒤 남은 일은 "코드를 설계에 맞추고, 규칙이 지켜지는지 도구로 확인하는 것"이었습니다.
+
+#### Domain을 지우고 Data로 합치기
+
+클린 아키텍처 시절의 흔적을 먼저 정리했습니다.
+
+| 이전 | 이후 |
+| --- | --- |
+| `Modules/Domain/Sources/Entity/Sample.swift` | `Modules/Data/Sources/Model/Sample.swift` |
+| `Modules/Domain/Sources/Repository/SampleRepository.swift` | `Modules/Data/Sources/Client/SampleClient.swift` |
+| `Domain` 타깃 | 삭제 |
+
+이름도 팀 규칙 6번에 맞춰 `SampleRepository` → `SampleClient`, `\.sampleRepository` → `\.sampleClient`로 바꿨습니다. 선언과 `liveValue`는 계속 같은 파일에 둡니다.
+
+#### Feature 모듈 두 개
+
+| 모듈 | 하는 일 | 의존 |
+| --- | --- | --- |
+| `FocusTimer` | 집중 타이머 (시작·일시정지·초기화, 끝나면 부모에게 알림) | Utils(`TimeFormatter`), TCA |
+| `SessionHistory` | 기록 목록 불러오기 | Data(`SampleClient`), TCA |
+
+두 Feature를 고른 이유는 의존이 서로 다르기 때문입니다. 하나는 Core만, 하나는 Data만 쓰니 그래프에서 화살표가 섞이지 않는지 보기 좋습니다.
+
+**이름 규칙**: 모듈은 `FocusTimer`, Reducer 타입은 `FocusTimerFeature`입니다. 5절의 "모듈 이름과 같은 타입을 만들지 않는다"를 그대로 적용했습니다. `Timer`라는 이름은 `Foundation.Timer`와 겹쳐서 처음부터 피했습니다.
+
+#### 형제 Feature끼리는 App의 RootFeature가 잇는다
+
+"타이머가 끝나면 기록을 다시 불러온다"는 요구는 두 Feature에 걸쳐 있습니다. Feature끼리는 서로 모르므로 App에 부모 Reducer를 두고 delegate 액션으로 연결했습니다.
+
+```swift
+// App/Sources/RootFeature.swift
+Reduce { _, action in
+    switch action {
+    case .timer(.delegate(.sessionFinished)):
+        return .send(.history(.reload))   // 형제 간 소통은 부모가 중계
+    case .timer, .history:
+        return .none
+    }
+}
+```
+
+`FocusTimer`는 "끝났다"는 사실만 알리고, 그걸 듣고 무엇을 할지는 App이 정합니다. 덕분에 `FocusTimer`는 `SessionHistory`의 존재를 모른 채로 Example 앱에서 혼자 실행됩니다.
+
+#### Example 앱은 mock을 명시적으로 넣는다
+
+`SessionHistory`는 Data를 링크하므로, 아무것도 주입하지 않으면 `liveValue`(실제 저장소)가 쓰입니다. Example 앱 진입점에서 직접 바꿔 끼웁니다.
+
+```swift
+// Modules/Features/SessionHistory/Example/SessionHistoryExampleApp.swift
+init() {
+    prepareDependencies {
+        $0.sampleClient.getSamples = {
+            [Sample(id: "example-1"), Sample(id: "example-2"), Sample(id: "example-3")]
+        }
+    }
+}
+```
+
+#### helper 추출: `Target.feature(...)`
+
+Feature 하나에 타깃이 세 개(프레임워크, Example, Tests)씩 붙으니 `Project.swift`가 금방 길어집니다. 로드맵의 "같은 코드가 세 번 나오면 추출"에 해당해서 `Tuist/ProjectDescriptionHelpers/Module.swift`로 뺐습니다.
+
+```swift
+extension Target {
+    /// Modules/ 아래의 정적 프레임워크 (Core, Data)
+    public static func module(name: String, path: String, dependencies: [TargetDependency] = []) -> Target
+
+    /// Feature 하나 = 프레임워크 + Example 앱 + 테스트
+    public static func feature(name: String, dependencies: [TargetDependency] = []) -> [Target]
+}
+```
+
+`Project.swift`에서는 이렇게 씁니다. 타깃 배열을 `+`로 이어 붙입니다.
+
+```swift
+targets: [ /* App, AppTests, AppUITests */ ]
+    + Target.feature(name: "FocusTimer", dependencies: [.target(name: "Utils")])
+    + Target.feature(name: "SessionHistory", dependencies: [.target(name: "Data")])
+    + [ .module(name: "Data", ...), .module(name: "Utils", ...) ]
+```
+
+- helper는 별도 모듈로 컴파일되므로, 타입과 함수를 `public`으로 선언해야 `Project.swift`에서 `import ProjectDescriptionHelpers`로 쓸 수 있습니다.
+- 첫 `tuist generate`에서 `cannot convert value of type '[String]' to expected argument type '[BuildableFolder]'`가 났습니다. 문자열 리터럴은 `BuildableFolder`로 자동 변환되지만, **보간이 들어간 문자열은 리터럴이 아니라서** `.folder("\(path)/Sources")`로 감싸야 합니다. 곁가지 실험의 "`./App/`을 상수로 뺄까?"에서 본 것과 같은 문제입니다.
+- Feature의 bundle ID는 `com.hyperfocus.timer.feature.<이름>`, Example은 `.example`, Tests는 `.tests`를 붙이는 규칙을 helper가 강제합니다.
+
+#### 암묵적 의존 검사가 잡아낸 것
+
+helper를 처음 만들 때는 "Example과 Tests는 Feature에만 의존한다"는 화살표 그대로 선언했습니다. 검사를 돌리니 바로 걸렸습니다.
+
+```
+$ tuist inspect dependencies --only implicit
+✖ Error
+  The following implicit dependencies were found:
+   - FocusTimerExample implicitly depends on: ComposableArchitecture
+   - FocusTimerTests implicitly depends on: ComposableArchitecture
+   - HyperFocusTests implicitly depends on: ComposableArchitecture
+   - SessionHistoryExample implicitly depends on: ComposableArchitecture, Data
+   - SessionHistoryTests implicitly depends on: ComposableArchitecture, Data
+```
+
+빌드는 성공했습니다. 정적 프레임워크가 Feature를 통해 전이적으로 링크되니 `import Data`가 우연히 동작한 것입니다. 하지만 Feature가 나중에 Data 의존을 끊으면 Example이 갑자기 깨집니다. 이 검사가 필요한 이유가 정확히 이것입니다.
+
+Example은 `Sample`로 mock을 만들고, Tests는 `TestStore`를 씁니다. 실제로 `import`하는 것이니 **화살표 쪽을 고쳤습니다.**
+
+```swift
+let featureDependencies = dependencies + [.external(name: "ComposableArchitecture")]
+let consumerDependencies = [TargetDependency.target(name: name)] + featureDependencies
+// Feature: featureDependencies / Example, Tests: consumerDependencies
+```
+
+| 모듈 | 의존하는 대상 (수정 후) |
+| --- | --- |
+| App | Features, ComposableArchitecture |
+| `<Feature>Example`, `<Feature>Tests` | `<Feature>`와 그 의존성 |
+| `<Feature>` | Data 또는 Core/Utils, ComposableArchitecture |
+| Data | Dependencies, DependenciesMacros |
+
+```
+$ tuist inspect dependencies --only implicit
+✔ Success
+  We did not find any dependency issues in your project (checked: implicit).
+```
+
+#### `tuist graph`로 방향 확인
+
+외부 패키지와 테스트 타깃을 빼고 보면 화살표는 이렇습니다.
+
+```bash
+tuist graph --skip-external-dependencies --skip-test-targets
+```
+
+```mermaid
+graph TD
+    HyperFocus --> FocusTimer
+    HyperFocus --> SessionHistory
+    FocusTimerExample --> FocusTimer
+    FocusTimerExample --> Utils
+    SessionHistoryExample --> SessionHistory
+    SessionHistoryExample --> Data
+    FocusTimer --> Utils
+    SessionHistory --> Data
+```
+
+- 위에서 아래로만 흐르고 되돌아오는 화살표가 없습니다.
+- `FocusTimer`와 `SessionHistory` 사이에 화살표가 없습니다.
+- Data와 Utils는 내부 모듈을 하나도 가리키지 않습니다.
+
+#### Tuist가 만든 스킴
+
+`FocusTimerExample` 스킴은 따로 생기지 않습니다. Tuist가 `FocusTimer` 스킴 하나에 Feature, Example, Tests를 묶어 주기 때문에, 이 스킴으로 빌드하면 Example까지 빌드되고 테스트하면 `FocusTimerTests`가 돕니다.
+
+#### 통과 기준 점검
+
+| 기준 | 결과 |
+| --- | --- |
+| 의존 방향이 한쪽으로만 흐른다 | ✅ `tuist graph` |
+| 순환 의존이 없다 | ✅ `tuist generate`가 순환을 오류로 막고, 그래프에도 없음 |
+| 암묵적 의존이 없다 | ✅ `tuist inspect dependencies --only implicit` |
+| 테스트 | ✅ `FocusTimerTests` 2개, `SessionHistoryTests` 2개, `HyperFocusTests`(RootFeature) 1개 통과 |
+
+테스트를 처음 돌렸을 때 `FocusTimerTests`가 컴파일되지 않았습니다.
+
+```
+error: subscript 'subscript(dynamicMember:)' requires that 'FocusTimerFeature.Action.Delegate' conform to 'CasePathable'
+```
+
+`@Reducer`는 `Action`에만 `@CasePathable`을 붙여 줍니다. 그 안에 중첩된 `Delegate` enum은 직접 붙여야 `store.receive(\.delegate.sessionFinished)` 같은 키패스를 쓸 수 있습니다.
+
+```swift
+@CasePathable
+public enum Delegate: Equatable {
+    case sessionFinished(seconds: Int)
+}
+```
+
+---
+
 ## 곁가지 실험
 
 ### 로드맵의 `enforceExplicitDependencies`는 deprecated였다
@@ -505,6 +685,9 @@ buildableFolders: [.folder("\(appRoot)/Sources")]                     // ✅ .fo
 - **로드맵의 옵션도 쓰기 전에 설치된 버전에서 확인합니다.** `enforceExplicitDependencies`는 이미 deprecated였습니다.
 - **설계는 모듈을 실제로 붙여 봐야 검증됩니다.** 그림으로는 깔끔했던 계층이 순환 의존과 정적 링크 문제로 드러났습니다. 계층마다 유지 비용이 있으니, 앱 규모에 비해 계층이 무겁다면 덜어 내는 것도 설계입니다.
 - **Entity의 가치는 위치가 아니라 경계 규칙에서 나옵니다.** 저장용 타입(`@Model`)을 `internal`로 숨기면, Data의 모델만으로도 "저장 방식과 분리된 타입"을 얻을 수 있습니다.
+- **빌드가 성공해도 의존 선언은 틀릴 수 있습니다.** 정적 링크는 전이적으로 들어오기 때문에 선언하지 않은 `import`도 동작합니다. `tuist inspect dependencies --only implicit`가 그 틈을 잡아 줍니다.
+- **형제 Feature는 서로를 모르고, 부모가 delegate 액션으로 잇습니다.** 그래야 각 Feature가 Example 앱에서 혼자 실행됩니다.
+- **helper의 문자열 보간에는 `.folder(...)`가 필요합니다.** 리터럴만 `BuildableFolder`로 자동 변환됩니다.
 
 ### 모듈을 나눌 때 체크리스트
 
@@ -512,15 +695,20 @@ buildableFolders: [.folder("\(appRoot)/Sources")]                     // ✅ .fo
 - [ ] `buildableFolders` 경로가 `Sources`까지 내려가 있는가? (테스트 코드 섞임 방지)
 - [ ] 모듈과 같은 이름의 타입이 없는가?
 - [ ] 시스템·외부 모듈과 이름이 겹치지 않는가? (`Network`, `Logging` 등)
+- [ ] Example·Tests가 `import`하는 모듈을 모두 선언했는가? (`tuist inspect dependencies --only implicit`)
+- [ ] 새 Feature가 다른 Feature를 가리키지 않는가? (`tuist graph`)
 
 ---
 
 ## 다음 글에서 다룰 것
 
-- `Modules/Core/Network` 추가 → 두 타깃 정의를 비교해서 `ProjectDescriptionHelpers`로 추출
-- Data 모듈 정리와 첫 Feature 모듈(Timer + Example 앱 + 테스트) 추가, 외부 라이브러리(`Tuist/Package.swift`) 연결
-- `tuist graph`로 의존 방향 확인, `tuist inspect dependencies --only implicit`로 암묵적 의존 검사 → 2주차 통과 기준 점검
-- 3주차 준비: 모듈 분리 후 클린 빌드 시간 측정
+3주차: 측정하지 않으면 개선이 아니다
+
+- 모듈 분리 후 클린 빌드·증분 빌드 시간 측정 (특히 TCA와 swift-syntax 매크로 빌드 비용)
+- 바이너리 캐시와 선택적 테스트로 시간이 얼마나 줄어드는지 수치로 비교
+- 측정 결과로 "Data를 `DataInterface`와 구현으로 나눌지" 판단
+- `tuist scaffold` 템플릿으로 새 Feature를 만드는 규칙을 코드로 남기기
+- 남은 결정: 모듈 이름 규칙(충돌 회피), `Modules/Core/Network` 추가
 
 ---
 
@@ -530,6 +718,7 @@ buildableFolders: [.folder("\(appRoot)/Sources")]                     // ✅ .fo
 
 ```bash
 cd <저장소 루트>      # 매니페스트가 루트에 있으므로 반드시 루트에서
+tuist install        # Tuist/Package.swift의 외부 의존성(TCA 등) 받기
 tuist generate
 ```
 
@@ -537,18 +726,18 @@ tuist generate
 
 ```swift
 import ProjectDescription
-
-let deploymentTargets: DeploymentTargets = .iOS("18.0")
+import ProjectDescriptionHelpers
 
 let project = Project(
     name: "HyperFocus",
     targets: [
+        // MARK: - App
         .target(
             name: "HyperFocus",
             destinations: .iOS,
             product: .app,
-            bundleId: "com.hyperfocus.timer",
-            deploymentTargets: deploymentTargets,
+            bundleId: Module.bundleIdPrefix,
+            deploymentTargets: Module.deploymentTargets,
             infoPlist: .extendingDefault(
                 with: [
                     "UILaunchScreen": [
@@ -566,7 +755,9 @@ let project = Project(
                 "com.apple.security.application-groups": ["$(APP_GROUP_ID)"],
             ]),
             dependencies: [
-                .target(name: "Utils")
+                .target(name: "FocusTimer"),
+                .target(name: "SessionHistory"),
+                .external(name: "ComposableArchitecture"),
             ],
             settings: .settings(
                 configurations: [
@@ -579,40 +770,140 @@ let project = Project(
             name: "HyperFocusTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "com.hyperfocus.timer.tests",
-            deploymentTargets: deploymentTargets,
+            bundleId: "\(Module.bundleIdPrefix).tests",
+            deploymentTargets: Module.deploymentTargets,
             infoPlist: .default,
             buildableFolders: [
                 "./App/Tests"
             ],
-            dependencies: [.target(name: "HyperFocus")]
+            dependencies: [
+                .target(name: "HyperFocus"),
+                .target(name: "Data"),
+                .external(name: "ComposableArchitecture"),
+            ]
         ),
         .target(
             name: "HyperFocusUITests",
             destinations: .iOS,
             product: .uiTests,
-            bundleId: "com.hyperfocus.timer.uitests",
-            deploymentTargets: deploymentTargets,
+            bundleId: "\(Module.bundleIdPrefix).uitests",
+            deploymentTargets: Module.deploymentTargets,
             infoPlist: .default,
             buildableFolders: [
                 "./App/UITests"
             ],
             dependencies: [.target(name: "HyperFocus")]
         ),
-        .target(
+
+        // MARK: - Features
+    ]
+    + Target.feature(
+        name: "FocusTimer",
+        dependencies: [.target(name: "Utils")]
+    )
+    + Target.feature(
+        name: "SessionHistory",
+        dependencies: [.target(name: "Data")]
+    )
+    + [
+        // MARK: - Data
+        .module(
+            name: "Data",
+            path: "./Modules/Data",
+            dependencies: [
+                .external(name: "Dependencies"),
+                .external(name: "DependenciesMacros"),
+            ]
+        ),
+
+        // MARK: - Core
+        .module(
             name: "Utils",
-            destinations: .iOS,
-            product: .staticFramework,
-            bundleId: "com.hyperfocus.timer.utils",
-            deploymentTargets: deploymentTargets,
-            infoPlist: .default,
-            buildableFolders: [
-                "./Modules/Core/Utils/Sources"
-            ],
-            dependencies: []
-        )
+            path: "./Modules/Core/Utils"
+        ),
     ]
 )
+```
+
+### `Tuist/ProjectDescriptionHelpers/Module.swift`
+
+```swift
+import ProjectDescription
+
+/// 모든 타깃이 공유하는 값
+public enum Module {
+    public static let deploymentTargets: DeploymentTargets = .iOS("18.0")
+    public static let bundleIdPrefix = "com.hyperfocus.timer"
+}
+
+extension Target {
+    /// `Modules/` 아래의 정적 프레임워크 모듈 (Core, Data 등)
+    public static func module(
+        name: String,
+        path: String,
+        dependencies: [TargetDependency] = []
+    ) -> Target {
+        .target(
+            name: name,
+            destinations: .iOS,
+            product: .staticFramework,
+            bundleId: "\(Module.bundleIdPrefix).\(name.lowercased())",
+            deploymentTargets: Module.deploymentTargets,
+            infoPlist: .default,
+            buildableFolders: [.folder("\(path)/Sources")],
+            dependencies: dependencies
+        )
+    }
+
+    /// Feature 하나 = 프레임워크 + Example 앱 + 테스트 (TMA)
+    ///
+    /// - Feature는 ComposableArchitecture를 기본으로 의존한다.
+    /// - Example과 Tests는 Feature와 그 의존성까지 선언한다.
+    ///   mock 주입(`prepareDependencies`, `TestStore`)에서 Data의 Model·Client를 직접 import하기 때문이다.
+    public static func feature(
+        name: String,
+        dependencies: [TargetDependency] = []
+    ) -> [Target] {
+        let path = "./Modules/Features/\(name)"
+        let bundleId = "\(Module.bundleIdPrefix).feature.\(name.lowercased())"
+        let featureDependencies = dependencies + [.external(name: "ComposableArchitecture")]
+        let consumerDependencies = [TargetDependency.target(name: name)] + featureDependencies
+        return [
+            .target(
+                name: name,
+                destinations: .iOS,
+                product: .staticFramework,
+                bundleId: bundleId,
+                deploymentTargets: Module.deploymentTargets,
+                infoPlist: .default,
+                buildableFolders: [.folder("\(path)/Sources")],
+                dependencies: featureDependencies
+            ),
+            .target(
+                name: "\(name)Example",
+                destinations: .iOS,
+                product: .app,
+                bundleId: "\(bundleId).example",
+                deploymentTargets: Module.deploymentTargets,
+                infoPlist: .extendingDefault(with: [
+                    "UILaunchScreen": ["UIColorName": "", "UIImageName": ""],
+                ]),
+                buildableFolders: [.folder("\(path)/Example")],
+                dependencies: consumerDependencies
+            ),
+            .target(
+                name: "\(name)Tests",
+                destinations: .iOS,
+                product: .unitTests,
+                bundleId: "\(bundleId).tests",
+                deploymentTargets: Module.deploymentTargets,
+                infoPlist: .default,
+                buildableFolders: [.folder("\(path)/Tests")],
+                dependencies: consumerDependencies
+            ),
+        ]
+    }
+}
 ```
 
 ### 커밋 이력
@@ -621,6 +912,9 @@ let project = Project(
 | --- | --- |
 | `refactor: 앱 타깃 파일을 App 폴더로 이동` | 파일 이동(변경 0줄) + 경로 6곳 수정 |
 | `feat: Core/Utils 정적 프레임워크 모듈 추가` | Utils 타깃, `TimeFormatter`, 앱에서 호출 |
+| `feat: SampleRepository를 struct 기반 의존성 클라이언트로 전환` 외 | swift-dependencies 추가, 클라이언트 전환 |
+| `docs: 최종 아키텍처(TMA Feature + Data)로 문서 정리` | 설계 변경 반영 |
+| `feat: Feature 모듈 분리와 ProjectDescriptionHelpers 추출` | Domain 삭제, FocusTimer·SessionHistory, RootFeature, helper, TCA |
 
 ---
 
