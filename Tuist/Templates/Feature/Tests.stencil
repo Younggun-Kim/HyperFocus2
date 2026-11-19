@@ -1,0 +1,14 @@
+import ComposableArchitecture
+import Testing
+@testable import {{ name }}
+
+@MainActor
+struct {{ name }}FeatureTests {
+    @Test func 화면이_나타나도_상태는_그대로다() async {
+        let store = TestStore(initialState: {{ name }}Feature.State()) {
+            {{ name }}Feature()
+        }
+
+        await store.send(.onAppear)
+    }
+}
