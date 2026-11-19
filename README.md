@@ -2,7 +2,10 @@
 
 HyperFocus 앱을 [Tuist](https://tuist.dev) 기반 프로젝트로 다시 구성하는 리팩터링 저장소입니다.
 
-> 🚧 2주차 진행 중입니다. 1주차에 앱·유닛 테스트·UI 테스트 타깃과 Debug/Release 설정(앱 이름, App Group) 분리를 마쳤고, 2주차에는 [아키텍처](#아키텍처)를 확정하고 Feature 2개(FocusTimer, SessionHistory)와 Data·Core/Utils 모듈로 나눈 뒤 암묵적 의존 검사를 통과했습니다.
+> 🚧 3주차까지 마쳤고, 4주차(CI)를 앞두고 있습니다.
+> - 1주차: 앱·유닛 테스트·UI 테스트 타깃과 Debug/Release 설정(앱 이름, App Group) 분리
+> - 2주차: [아키텍처](#아키텍처) 확정, Feature 2개(FocusTimer, SessionHistory)와 Data·Core/Utils 모듈 분리, 암묵적 의존 검사 통과
+> - 3주차: 바이너리 캐시와 선택적 테스트 측정([결과](#측정-결과)), [새 Feature를 만드는 scaffold 템플릿](#새-feature-추가하기) 추가
 
 ## 목표
 
@@ -34,7 +37,7 @@ cd HyperFocus_Refactoring
 mise install
 tuist version   # 4.216.2가 나오면 정상
 
-# 3. 외부 의존성 가져오기 (Tuist/Package.swift: swift-dependencies)
+# 3. 외부 의존성 가져오기 (Tuist/Package.swift: swift-dependencies, TCA)
 tuist install
 
 # 4. Xcode 프로젝트 생성 후 열기
@@ -50,11 +53,17 @@ tuist generate
 | 명령어 | 용도 |
 | --- | --- |
 | `tuist edit` | 매니페스트를 Xcode에서 열어 편집 (자동완성 지원) |
-| `tuist generate` | 매니페스트로 Xcode 프로젝트 생성 |
+| `tuist generate` | 매니페스트로 Xcode 프로젝트 생성 (기본값: 외부 의존성은 캐시된 바이너리 사용) |
 | `tuist install` | `Tuist/Package.swift`의 외부 의존성 설치 |
 | `tuist graph` | 모듈 의존성 그래프 시각화 |
-| `tuist build` / `tuist test` | 빌드 / 테스트 (테스트는 변경된 타겟만 실행) |
+| `tuist inspect dependencies --only implicit` | 선언하지 않은 `import`(암묵적 의존) 검사 |
 | `tuist cache` | 바이너리 캐시 데우기 |
+| `xcodebuild build -workspace HyperFocus.xcworkspace -scheme HyperFocus ...` | 빌드. `tuist build`는 4.216.2에서 빌드 기록 조회 명령으로 바뀌어 빌드하지 않습니다 |
+| `tuist test <스킴> --device "iPhone 17 Pro"` | 테스트. 기본으로 선택적 테스트가 켜져 있어 해시가 바뀐 테스트 타깃만 실행합니다 |
+| `tuist run <Feature> --device "iPhone 17 Pro"` | Feature의 Example 앱 실행 (`<Feature>` 스킴의 Run 대상이 Example 앱) |
+| `tuist scaffold Feature --name <이름>` | 새 Feature 모듈 파일 생성 |
+
+> 배포용 아카이브는 `tuist generate --no-binary-cache`로 소스 기반 프로젝트를 생성한 뒤 만듭니다.
 
 ## 빌드 configuration
 
@@ -87,8 +96,10 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 ├── Tuist.swift              # 프로젝트 루트 표시 및 생성 옵션
 ├── Tuist/
 │   ├── Package.swift        # 외부 의존성 (SPM: swift-dependencies, TCA)
-│   └── ProjectDescriptionHelpers/
-│       └── Module.swift     # Target.module(...), Target.feature(...) helper
+│   ├── ProjectDescriptionHelpers/
+│   │   └── Module.swift     # Target.module(...), Target.feature(...) helper
+│   └── Templates/
+│       └── Feature/         # tuist scaffold Feature 템플릿 (매니페스트 + .stencil 4개)
 ├── Project.swift            # 모든 타깃 선언 (Mono-project: 앱·테스트·모듈)
 ├── App/                     # 실행 단위(앱 타깃)
 │   ├── Sources/             # 앱 진입점, RootFeature(자식 Feature 조립)
@@ -117,7 +128,33 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 └── mise.toml                # Tuist 버전 고정
 ```
 
-반복되는 타깃 정의는 `Tuist/ProjectDescriptionHelpers/Module.swift`로 추출했습니다. `Target.feature(name:dependencies:)` 한 줄이 Feature 프레임워크, `<Feature>Example` 앱, `<Feature>Tests`를 함께 만듭니다.
+반복되는 타깃 정의는 `Tuist/ProjectDescriptionHelpers/Module.swift`로 추출했습니다. `Target.feature(name:dependencies:)` 호출 하나가 Feature 프레임워크, `<Feature>Example` 앱, `<Feature>Tests`를 함께 만듭니다.
+
+## 새 Feature 추가하기
+
+```bash
+# 1. 파일 생성 (저장소 루트에서, --path 없이)
+tuist scaffold Feature --name Settings
+```
+
+`Modules/Features/Settings/` 아래에 `SettingsFeature.swift`, `SettingsView.swift`(Sources), `SettingsExampleApp.swift`(Example), `SettingsFeatureTests.swift`(Tests)가 생깁니다.
+
+```swift
+// 2. Project.swift의 Features 구간에 그래프 연결 (의존성은 Feature마다 직접 정함)
+    + Target.feature(
+        name: "Settings",
+        dependencies: [.target(name: "Data")]
+    )
+```
+
+```bash
+# 3. 프로젝트 생성 후 테스트
+tuist generate
+tuist test Settings --device "iPhone 17 Pro"
+```
+
+- scaffold는 파일만 만듭니다. 그래프 연결은 의존성을 리뷰에서 확인하도록 일부러 수작업으로 남겼습니다.
+- 앱 화면에 붙이려면 `HyperFocus` 타깃의 `dependencies`에도 추가하고, `RootFeature`에서 조립합니다.
 
 ## 아키텍처
 
@@ -165,11 +202,24 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 - [x] App Group entitlements를 환경별로 분리
 - [x] UI 테스트 타깃 추가
 - [x] 모듈 분리 및 암묵적 의존 검사(`tuist inspect dependencies --only implicit`) 적용
-- [ ] 바이너리 캐시·선택적 테스트 적용 및 시간 측정
+- [x] 바이너리 캐시·선택적 테스트 적용 및 시간 측정
+- [x] 새 Feature를 만드는 scaffold 템플릿
 - [ ] CI 파이프라인 구성
+
+### 측정 결과
+
+MacBook Pro(M3 Pro, 18GB), Xcode 27.2, Tuist 4.216.2에서 항목마다 3회 잰 중앙값입니다. 방법과 한계는 [3주차 글](docs/blog/week3-measure.md)에 있습니다.
+
+| 항목 | 적용 전 | 적용 후 |
+| --- | --- | --- |
+| 클린 빌드 | 55.4초 (캐시 없음) | 10.9초 (외부 의존성 바이너리 캐시, -80%) |
+| 모듈 1개 변경 후 테스트 | 48.1초 (선택적 테스트 끔) | 45.0초 (켬, 측정 오차 범위 안) |
+
+선택적 테스트의 효과가 작은 건 app-hosted 테스트인 `HyperFocusTests`가 모든 Feature에 의존해서 매번 다시 실행되기 때문으로 보입니다.
 
 ## 문서
 
 - [Tuist 로드맵: 매니페스트부터 CI까지](docs/tuist-roadmap.md)
 - [Tuist 1주차: 매니페스트로 iOS 프로젝트 만들기](docs/blog/week1-manifest.md)
-- [Tuist 2주차: 모듈 설계와 첫 번째 모듈 분리](docs/blog/week2-modularization.md)
+- [Tuist 2주차: 모듈 설계부터 Feature 분리와 의존성 검증까지](docs/blog/week2-modularization.md)
+- [Tuist 3주차: 바이너리 캐시와 선택적 테스트를 숫자로 확인하기, 그리고 scaffold](docs/blog/week3-measure.md)
