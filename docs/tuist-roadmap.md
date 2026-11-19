@@ -146,7 +146,9 @@ tuist inspect dependencies --only implicit
 
 ### 배울 것
 
-- `tuist build`, `tuist test`, `tuist run`
+- `tuist test`, `tuist run`
+  - Tuist 4.216.2 기준 `tuist build`는 빌드를 실행하지 않습니다. 이미 실행된 빌드 기록을 조회하는 inspection 명령(`list`, `show` 등)으로 바뀌었습니다. 빌드는 `xcodebuild build -workspace HyperFocus.xcworkspace -scheme HyperFocus ...`처럼 `xcodebuild`를 직접 실행하세요.
+  - `tuist test`에서 `xcodebuild` 인자를 넘길 때는 `tuist test -- -derivedDataPath <경로>`처럼 `--` 뒤에 적습니다. `--derived-data-path` 옵션은 deprecated입니다.
 - 템플릿(Scaffold): `tuist edit` 후 `Tuist/Templates/<템플릿명>/` 아래에 매니페스트를 만들고 `tuist scaffold <템플릿명> --name Foo`로 실행합니다. 새 모듈을 만들 때 쓰는 팀 규칙을 코드로 남기는 작업입니다.
 
 #### 바이너리 캐시
@@ -155,6 +157,7 @@ tuist inspect dependencies --only implicit
 - `tuist cache`로 캐시를 데웁니다.
 - 효과는 그래프 구조에 크게 좌우됩니다. 잘게 나뉘고 변경이 적은 모듈이 많을수록 유리합니다.
 - 시뮬레이터/기기 실행이나 테스트 같은 개발 워크플로용입니다. 앱을 아카이브할 때는 `--no-binary-cache`로 소스 기반 프로젝트를 생성하세요.
+- 캐시 범위는 `--cache-profile`로 고릅니다. 값은 `only-external`(기본값, 외부 의존성만), `all-possible`(내부 모듈 포함), `none`(캐시 사용 안 함) 중 하나입니다. `--cache-profile none`은 `--no-binary-cache`와 같은 효과입니다.
 - CI에서 main 브랜치 커밋마다 캐시를 데우는 잡을 두는 것이 권장됩니다.
 
 #### 선택적 테스트
@@ -177,8 +180,10 @@ helper와 템플릿을 여러 프로젝트에서 공유하는 용도입니다. �
 
 | 항목 | 적용 전 | 적용 후 |
 | --- | --- | --- |
-| 클린 빌드 시간 | (측정) | (측정) |
-| 변경 1개 모듈 후 테스트 시간 | (측정) | (측정) |
+| 클린 빌드 시간 | 55.4s (`--cache-profile none`) | 10.9s (`only-external`, -80%) |
+| 변경 1개 모듈 후 테스트 시간 | 48.1s (`--no-selective-testing`) | 45.0s (선택적 테스트, -6%) |
+
+> HyperFocus 측정값입니다(Xcode 27.2, Tuist 4.216.2, 3회 측정의 중앙값). 클린 빌드는 매번 DerivedData를 지우고 `xcodebuild build`로 쟀습니다. 선택적 테스트의 효과가 작은 이유는 구조에 있습니다. App이 모든 Feature에 의존하기 때문에 app-hosted 테스트인 `HyperFocusTests`가 매번 실행되고, 이 테스트는 시뮬레이터와 앱 준비에만 약 18초가 걸립니다. 그래서 선택적 테스트로 건너뛸 수 있는 것은 실행 비용이 작은 Feature 테스트뿐이었습니다.
 
 도입 전 숫자가 없으면 "빨라진 것 같다"는 느낌만 남습니다. 이 숫자가 팀을 설득합니다.
 
@@ -193,7 +198,7 @@ helper와 템플릿을 여러 프로젝트에서 공유하는 용도입니다. �
 1. `mise install` (고정된 Tuist 버전 설치)
 2. `tuist install` (외부 의존성 가져오기)
 3. `tuist generate` (프로젝트 생성)
-4. `tuist build` / `tuist test`
+4. `xcodebuild build` / `tuist test` (`tuist build`는 빌드 기록 조회 명령이므로 빌드에 쓰지 않습니다)
 5. 릴리스 빌드는 `--no-binary-cache`로 생성한 소스 기반 프로젝트로 아카이브 → Fastlane 등으로 TestFlight 업로드
 
 CI에서 Tuist 버전이 로컬과 같은지부터 확인하세요. 어긋나면 "내 PC에서는 되는데" 문제가 생깁니다.
