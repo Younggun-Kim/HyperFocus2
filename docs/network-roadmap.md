@@ -10,13 +10,13 @@
 | --- | --- | --- |
 | 0 | 가장 단순한 `request` | ✅ 완료 (`7cf2783`) |
 | 1 | 공통 디코더 | ✅ 완료 |
-| 2 | 핵심 함수 `send` 분리 + `requestData` | ⬜ |
+| 2 | 핵심 함수 `send` 분리 + `requestData` | ✅ 완료 (반환 타입 변경은 보류) |
 | 3 | 취소 지원 | ⬜ |
 | 4 | 토큰 주입 인터셉터 (`RequestAdapter`) | ⬜ |
 | 5 | `AuthenticationInterceptor` (갱신·재시도·경합) | ⬜ |
 | 6 | 갱신 실패 구분 + 세션 만료 1회 발행 | ⬜ |
 | 7 | 선제 갱신 (`expiresIn`) | ⬜ |
-| 별도 | Keychain 이전, 로깅 | ⬜ |
+| 별도 | Keychain 이전, 로깅, 반환 타입 `D` (설계 확정) | ⬜ |
 
 ---
 
@@ -134,7 +134,7 @@ t2  A가 늦게 401 → 갱신을 또 시작 → 이미 무효인 R1을 보내�
 
 ---
 
-## 2단계: 핵심 함수 send 분리 + requestData
+## 2단계: 핵심 함수 send 분리 + requestData ✅
 
 **목표**: JSON 요청과 Data 요청이 같은 경로를 거치게 합니다.
 
@@ -144,21 +144,23 @@ send(target) -> Data      ← 이후 단계의 공통 처리가 모두 여기에
  └─ requestData → send 결과를 그대로 반환
 ```
 
-**정할 것**: 반환 타입 (1단계에서 넘어옴)
+**구현**
 
-| 선택지 | 특징 |
-| --- | --- |
-| `APIResponse<D>` (지금) | 기존 호출부 40곳과 호환. Repository/UseCase가 `.data`를 꺼내고 `success`를 확인 |
-| `D` | 응답 봉투(`APIResponse`)가 네트워크 계층 밖으로 새지 않음. `success == false`를 에러로 바꾸는 규칙을 서비스가 맡음 |
+- `send`는 `private`. Moya 호출과 `APIError` 변환만 맡고 디코딩은 모름 (`37c765e`)
+- 디코딩 실패는 `String(describing: error)`로 담아 `codingPath`와 `debugDescription`을 보존 (`37c765e`)
+- `requestData` 추가 (`3de0cd4`)
 
-`D`로 가려면 `data: null` 규칙을 함께 정해야 합니다. 기존 코드에는 `EmptyResponse`(10곳) 외에도 `data: null`을 정상 값으로 쓰는 API가 있습니다.
+**확인된 사실**
 
-**함께 고칠 것**: 디코딩 실패 시 `error.localizedDescription` 대신 `String(describing: error)`로 담아 `codingPath`와 `debugDescription`을 로그에 남깁니다.
+- Moya는 `validationType` 실패를 `.underlying(.statusCode, response)`로 감쌉니다. 기존 `APIError.from`은 서버 메시지(JSON)를 파싱하지 못하면 응답이 있어도 `networkError`로 분류했습니다. HTML 502나 파일 다운로드 중 500이 네트워크 오류가 되던 버그로, 응답이 있으면 항상 `httpError`로 고쳤습니다 (`0d82a11`).
+- `localizedDescription`은 "The data couldn't be read…" 같은 일반 문구만 남기고 필드 경로를 버립니다.
+
+**보류**: 반환 타입 변경은 설계만 정하고 [별도 트랙](#반환-타입-d로-변경-보류)으로 옮겼습니다. 3~7단계는 모두 `send` 안쪽의 일이라 반환 타입과 무관합니다.
 
 **통과 기준**
 
-- [ ] `request`와 `requestData`가 `send`를 공유
-- [ ] `requestData`의 성공·실패 테스트
+- [x] `request`와 `requestData`가 `send`를 공유
+- [x] `requestData`의 성공·실패 테스트
 
 ---
 
@@ -260,3 +262,38 @@ send(target) -> Data      ← 이후 단계의 공통 처리가 모두 여기에
 | 로깅 | `NetworkLoggingPlugin`은 Plugin 역할(관찰)에 맞으므로 그대로 Moya Plugin으로 둠 |
 | WebSocket | `StompClient`도 access token을 쓰지만 갱신 흐름에 포함되지 않음. 소켓 연결 중 만료되면 어떻게 되는지 확인 필요 |
 | 모듈 경계 | `APIError+Reason.swift`의 `deferralReason`은 집중 세션 애널리틱스 전용. Core에서 Feature/Data 쪽으로 옮길지 검토 |
+| 반환 타입 | `APIResponse<D>` → `D`. 아래 설계로 확정, 구현 보류 |
+
+### 반환 타입 D로 변경 (보류)
+
+**왜**: `APIResponse`는 서버가 응답을 감싸는 방식(전송 형식)입니다. 지금은 이 봉투가 Repository까지 올라가서 `success`·`data` 검사가 호출부마다 반복됩니다. 성공은 `D`로, 실패는 `APIError`로만 내보내면 `APIResponse`는 디코딩용 `internal` 타입이 됩니다.
+
+**기존 호출부 조사** (`requestWrapped` 57곳)
+
+| 부류 | 개수 | `data: null`의 의미 | 예 |
+| --- | --- | --- | --- |
+| A | 10곳 | 원래 본문 없음 | `signOut`, `leaveRoom` (`EmptyResponse`) |
+| B | 8곳+ | 에러 | 방 생성 (`guard let data … throw` 반복) |
+| C | 4곳+ | 정상 ("없음") | 버전 체크, PMF 대상 확인 |
+
+`success`는 인증 흐름 7곳에서만 검사하고, 실패 시 `message`·`code`를 읽는 곳은 없습니다. 서버가 실제로 `200 + success: false`를 보내는지는 미확인입니다.
+
+**확정한 설계**
+
+| 상황 | 처리 |
+| --- | --- |
+| `success == false` | 새 케이스 `APIError.serverError(code:message:)` |
+| A. 본문 없음 | `Void`를 반환하는 `request(_:)` 별도 메서드. 호출부에서 `EmptyResponse`가 사라짐 |
+| B. nil이면 에러 | `request(_:responseType: Room.self)` → `data: null`이면 `decodingError` (메시지에 타입 이름) |
+| C. nil이 정상 | `request(_:responseType: AppVersion?.self)` → 옵셔널 타입을 넘겨 선언 |
+
+**구현 힌트**: 제네릭 안에서 `D.self as? ExpressibleByNilLiteral.Type`로 옵셔널 여부를 판별합니다.
+
+**통과 기준**
+
+- [ ] `data` 있음 → `D`
+- [ ] `data: null` + 옵셔널 `D` → `nil`
+- [ ] `data: null` + 옵셔널 아닌 `D` → `decodingError`
+- [ ] `success: false` (200) → `serverError`
+- [ ] `Void` 메서드는 `data: null`이어도 성공
+- [ ] `APIResponse`를 `internal`로 내림
