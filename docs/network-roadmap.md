@@ -11,7 +11,7 @@
 | 0 | 가장 단순한 `request` | ✅ 완료 (`7cf2783`) |
 | 1 | 공통 디코더 | ✅ 완료 |
 | 2 | 핵심 함수 `send` 분리 + `requestData` | ✅ 완료 (반환 타입 변경은 보류) |
-| 3 | 취소 지원 | ⬜ |
+| 3 | 취소 지원 | ✅ 완료 (`AFError` 경로 검증은 4단계) |
 | 4 | 토큰 주입 인터셉터 (`RequestAdapter`) | ⬜ |
 | 5 | `AuthenticationInterceptor` (갱신·재시도·경합) | ⬜ |
 | 6 | 갱신 실패 구분 + 세션 만료 1회 발행 | ⬜ |
@@ -164,17 +164,42 @@ send(target) -> Data      ← 이후 단계의 공통 처리가 모두 여기에
 
 ---
 
-## 3단계: 취소 지원
+## 3단계: 취소 지원 ✅
 
 **목표**: TCA Effect가 취소되면 네트워크 요청도 취소합니다.
 
-**힌트**: `withTaskCancellationHandler`와 Moya `request`가 반환하는 `Cancellable`을 함께 씁니다.
+**구현**
+
+- `send`를 `withTaskCancellationHandler`로 감싸고, Moya `request`가 돌려주는 `Cancellable`을 `onCancel`에서 취소합니다.
+- 두 클로저가 함께 보는 상태를 `Mutex<RequestState>`에 둡니다. `onCancel`은 `task.cancel()`을 부른 쪽 스레드에서 바로 실행되므로, 요청을 보내는 쪽과 동시에 상태를 만질 수 있습니다.
+- `RequestState`는 세 가지입니다: `idle` / `requesting(Cancellable)` / `cancelled`
+
+| 누가 | 상태를 열었더니 | 할 일 |
+| --- | --- | --- |
+| 요청 쪽 | `idle` | `requesting(cancellable)`로 담음 |
+| 요청 쪽 | `cancelled` | 담지 않고 바로 `cancel()` |
+| `onCancel` | `requesting` | `cancel()` |
+| `onCancel` | `idle` | `cancelled`로 적어 둠 |
+
+- 취소 쪽에서 continuation을 resume하지 않습니다. `cancel()`을 부르면 Moya가 원래 콜백을 `.failure`로 불러 주므로 "정확히 한 번" 규칙이 유지됩니다.
+- `APIError.from`이 두 가지 취소 에러를 모두 `.cancelled`로 분류합니다. 이를 위해 CoreNetwork가 Alamofire를 직접 의존합니다 (4단계에서도 필요).
+
+**확인된 사실**
+
+- `onCancel`이 요청보다 **먼저** 실행되는 경우가 있습니다. 이미 취소된 Task에서 `send`를 부를 때, 그리고 `provider.request(...)`와 상태 저장 사이에 취소될 때입니다. 그래서 상태에 `cancelled`가 필요합니다.
+- 취소 에러는 경로에 따라 다릅니다.
+  - Moya stub이거나 Alamofire 요청이 만들어지기 전에 취소: `NSURLErrorCancelled` (`MoyaProvider+Internal.swift`의 `cancelCompletion`)
+  - 진행 중인 Alamofire 요청을 취소: `AFError.explicitlyCancelled`. 기존 코드는 이 경우를 `networkError`로 분류했습니다.
+- Moya 지연 stub(`delayedStub`)은 `cancel()`이 깃발만 세우고, 지연 시간이 지난 뒤 깃발을 보고 취소 에러를 돌려줍니다. 그래서 취소 테스트가 지연 시간만큼 걸립니다.
+- 테스트 파일에서는 `Moya.Task`가 Swift의 `Task`를 가리므로 `_Concurrency.Task`로 씁니다.
 
 **통과 기준**
 
-- [ ] Task 취소 시 `.cancelled`
+- [x] 요청 중에 Task를 취소하면 `.cancelled` (`delayedStub`)
+- [x] 이미 취소된 Task에서 호출해도 `.cancelled`
+- [ ] `AFError.explicitlyCancelled` 경로 → 4단계의 `URLProtocol` mock으로 검증
 
-**3단계를 마칠 때 준비할 것**: `URLProtocol` mock. 아래 주의 사항을 참고하세요.
+**4단계 전에 준비할 것**: `URLProtocol` mock. 아래 주의 사항을 참고하세요.
 
 > ⚠️ **4단계부터는 Moya stub으로 테스트할 수 없습니다.** Moya stub(`immediatelyStub`)은 Alamofire `Session`을 거치지 않고 바로 응답을 돌려주므로 인터셉터가 실행되지 않습니다. 4단계부터는 `URLProtocol`을 상속한 mock을 `Session`의 configuration에 끼워서 테스트합니다.
 

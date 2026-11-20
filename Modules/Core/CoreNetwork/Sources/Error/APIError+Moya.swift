@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Alamofire
 import Moya
 
 
@@ -23,6 +24,17 @@ extension APIError {
         return nil
     }
     
+    /// 취소 에러는 경로에 따라 두 가지로 온다.
+    /// - Moya stub, 또는 Alamofire 요청이 만들어지기 전에 취소: `NSURLErrorCancelled`
+    /// - 진행 중인 Alamofire 요청을 취소: `AFError.explicitlyCancelled`
+    private static func isCancellation(_ error: Error) -> Bool {
+        if error.asAFError?.isExplicitlyCancelledError == true {
+            return true
+        }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+    }
+
     public static func from(_ error: MoyaError) -> APIError {
         switch error {
         case .imageMapping, .jsonMapping, .stringMapping, .objectMapping:
@@ -49,7 +61,7 @@ extension APIError {
                 )
             }
 
-            if (error as NSError).code == NSURLErrorCancelled {
+            if isCancellation(error) {
                 return .cancelled
             }
             

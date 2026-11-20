@@ -104,6 +104,50 @@ struct APIServiceTests {
         }
     }
 
+    /// 3단계: Task를 취소하면 Moya 요청도 취소되고 `.cancelled`가 나온다.
+    ///
+    /// 지연 stub은 Moya 안에서 취소되므로 `NSURLErrorCancelled` 경로만 검증한다.
+    /// `AFError.explicitlyCancelled` 경로는 `URLProtocol` mock으로 4단계에서 검증한다.
+    @Suite struct 취소_테스트 {
+        @Test func 요청_중에_Task를_취소하면_cancelled를_던진다() async throws {
+            let json = #"{"success": true, "data": {"user_name": "yg"}, "message": null, "code": null}"#
+            let service = APIService.stub(.networkResponse(200, Data(json.utf8)), behavior: .delayed(seconds: 1))
+
+            let task = _Concurrency.Task {
+                try await service.request(StubTarget(), responseType: User.self)
+            }
+            try await _Concurrency.Task.sleep(for: .milliseconds(100))   // 요청이 출발할 시간을 줌
+            task.cancel()
+
+            let error = await #expect(throws: APIError.self) {
+                try await task.value
+            }
+            guard case .cancelled = error else {
+                Issue.record("cancelled가 아님: \(String(describing: error))")
+                return
+            }
+        }
+
+        /// 이미 취소된 Task에서는 onCancel이 요청보다 먼저 불린다.
+        @Test func 이미_취소된_Task에서_불러도_cancelled를_던진다() async throws {
+            let json = #"{"success": true, "data": {"user_name": "yg"}, "message": null, "code": null}"#
+            let service = APIService.stub(.networkResponse(200, Data(json.utf8)), behavior: .delayed(seconds: 1))
+
+            let task = _Concurrency.Task {
+                withUnsafeCurrentTask { $0?.cancel() }   // 요청 전에 스스로 취소
+                return try await service.request(StubTarget(), responseType: User.self)
+            }
+
+            let error = await #expect(throws: APIError.self) {
+                try await task.value
+            }
+            guard case .cancelled = error else {
+                Issue.record("cancelled가 아님: \(String(describing: error))")
+                return
+            }
+        }
+    }
+
     /// nginx·로드밸런서가 HTML 에러 페이지를 돌려주는 경우.
     /// 네트워크 오류로 분류되면 6단계의 "네트워크 오류면 세션 유지" 구분이 깨진다.
     @Test func 본문이_HTML인_502도_httpError를_던진다() async throws {
@@ -136,8 +180,11 @@ private struct StubTarget: BaseTarget {
 }
 
 private extension APIService {
-    /// 모든 요청에 `sample`을 즉시 돌려주는 서비스
-    static func stub(_ sample: EndpointSampleResponse) -> APIService {
+    /// 모든 요청에 `sample`을 돌려주는 서비스. 기본은 즉시 응답한다.
+    static func stub(
+        _ sample: EndpointSampleResponse,
+        behavior: StubBehavior = .immediate
+    ) -> APIService {
         let provider = MoyaProvider<MultiTarget>(
             endpointClosure: { target in
                 Endpoint(
@@ -148,7 +195,7 @@ private extension APIService {
                     httpHeaderFields: target.headers
                 )
             },
-            stubClosure: MoyaProvider.immediatelyStub
+            stubClosure: { _ in behavior }
         )
         return APIService(provider: provider)
     }

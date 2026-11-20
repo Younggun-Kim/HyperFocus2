@@ -114,6 +114,7 @@ let project = Project(
             path: "./Modules/Core/CoreNetwork",
             dependencies: [
                 .external(name: "Moya"),
+                .external(name: "Alamofire"),
             ]
         ),
         .moduleTests(
