@@ -9,7 +9,7 @@
 | 단계 | 추가할 것 | 상태 |
 | --- | --- | --- |
 | 0 | 가장 단순한 `request` | ✅ 완료 (`7cf2783`) |
-| 1 | 공통 디코더 | ⬜ |
+| 1 | 공통 디코더 | ✅ 완료 |
 | 2 | 핵심 함수 `send` 분리 + `requestData` | ⬜ |
 | 3 | 취소 지원 | ⬜ |
 | 4 | 토큰 주입 인터셉터 (`RequestAdapter`) | ⬜ |
@@ -109,21 +109,28 @@ t2  A가 늦게 401 → 갱신을 또 시작 → 이미 무효인 R1을 보내�
 
 ---
 
-## 1단계: 공통 디코더
+## 1단계: 공통 디코더 ✅
 
 **목표**: 디코더를 `static let` 하나로 공유하고, snake_case와 날짜 전략을 한 곳에서 정합니다.
 
-**정할 것**: 반환 타입
+**구현** (`APIService+Decoder.swift`)
 
-| 선택지 | 특징 |
-| --- | --- |
-| `APIResponse<D>` (지금) | 기존 호출부 40곳과 호환. Repository/UseCase가 `.data`를 꺼내고 `success`를 확인 |
-| `D` | 응답 봉투(`APIResponse`)가 네트워크 계층 밖으로 새지 않음. `success == false`를 에러로 바꾸는 규칙을 서비스가 맡음 |
+- `JSONDecoder.api`: 모든 응답이 공유하는 디코더
+- `ServerDate`: `Date.ISO8601FormatStyle` 두 개로 기존 포맷 4종을 모두 처리
+  - 시간대 표기 있음 (`…Z`, `…+09:00`) → 표기된 시간대
+  - 시간대 표기 없음 → UTC. 소수 초 0~6자리를 하나의 전략으로 처리
+  - **순서 중요**: 시간대 없는 전략은 `+09:00`을 무시하므로 나중에 시도
+
+**확인된 사실**
+
+- `Date.ParseStrategy`는 쓰지 않습니다. `.fractional(6)`이어도 소수 초를 밀리초까지만 보존하고(`.123456` → `.123`), 기본값이 lenient라 `2026/11/20 07:50:11`도 통과시킵니다.
+- `ISO8601FormatStyle`은 `Sendable`인 값 타입이라 `static let`으로 두고 `@Sendable` 클로저에서 그대로 쓸 수 있습니다.
+- 날짜 뒤에 붙은 문자(`…Zjunk`)는 무시하고 파싱에 성공합니다. 서버가 보낼 일은 없어서 그대로 둡니다.
 
 **통과 기준**
 
-- [ ] 날짜가 들어 있는 JSON 디코딩 성공 (마이크로초·밀리초·초 단위 포맷)
-- [ ] 날짜 포매터를 요청마다 만들지 않음
+- [x] 날짜가 들어 있는 JSON 디코딩 성공 (마이크로초·밀리초·초 단위 포맷)
+- [x] 날짜 포매터를 요청마다 만들지 않음
 
 ---
 
@@ -136,6 +143,17 @@ send(target) -> Data      ← 이후 단계의 공통 처리가 모두 여기에
  ├─ request     → send 결과를 디코딩
  └─ requestData → send 결과를 그대로 반환
 ```
+
+**정할 것**: 반환 타입 (1단계에서 넘어옴)
+
+| 선택지 | 특징 |
+| --- | --- |
+| `APIResponse<D>` (지금) | 기존 호출부 40곳과 호환. Repository/UseCase가 `.data`를 꺼내고 `success`를 확인 |
+| `D` | 응답 봉투(`APIResponse`)가 네트워크 계층 밖으로 새지 않음. `success == false`를 에러로 바꾸는 규칙을 서비스가 맡음 |
+
+`D`로 가려면 `data: null` 규칙을 함께 정해야 합니다. 기존 코드에는 `EmptyResponse`(10곳) 외에도 `data: null`을 정상 값으로 쓰는 API가 있습니다.
+
+**함께 고칠 것**: 디코딩 실패 시 `error.localizedDescription` 대신 `String(describing: error)`로 담아 `codingPath`와 `debugDescription`을 로그에 남깁니다.
 
 **통과 기준**
 

@@ -33,9 +33,7 @@ public struct APIService: APIServiceProtocol {
                 switch result {
                 case .success(let response):
                     do {
-                        let decoder = JSONDecoder()
-                        decoder.keyDecodingStrategy = .convertFromSnakeCase
-                        let decoded = try decoder.decode(APIResponse<D>.self, from: response.data)
+                        let decoded = try JSONDecoder.api.decode(APIResponse<D>.self, from: response.data)
                         
                         continuation.resume(returning: decoded)
                     } catch {
