@@ -15,6 +15,9 @@ public protocol APIServiceProtocol {
         _ target: T,
         responseType: D.Type
     ) async throws -> APIResponse<D>
+    
+    /// Raw Data 요청 (파일 다운로드 등)
+    func requestData<T: BaseTarget>(_ target: T) async throws -> Data
 }
 
 public struct APIService: APIServiceProtocol {
@@ -35,6 +38,10 @@ public struct APIService: APIServiceProtocol {
         } catch {
             throw APIError.decodingError(String(describing: error))
         }
+    }
+    
+    public func requestData<T: BaseTarget>(_ target: T) async throws -> Data {
+        try await send(target)
     }
     
     private func send<T: BaseTarget>(_ target: T) async throws -> Data {
