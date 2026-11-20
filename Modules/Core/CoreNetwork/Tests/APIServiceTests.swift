@@ -166,37 +166,3 @@ struct APIServiceTests {
         #expect(message == nil)
     }
 }
-
-// MARK: - Fixtures
-
-private struct User: Decodable, Sendable, Equatable {
-    let userName: String
-}
-
-private struct StubTarget: BaseTarget {
-    var path: String { "/stub" }
-    var method: Moya.Method { .get }
-    var task: Moya.Task { .requestPlain }
-}
-
-private extension APIService {
-    /// 모든 요청에 `sample`을 돌려주는 서비스. 기본은 즉시 응답한다.
-    static func stub(
-        _ sample: EndpointSampleResponse,
-        behavior: StubBehavior = .immediate
-    ) -> APIService {
-        let provider = MoyaProvider<MultiTarget>(
-            endpointClosure: { target in
-                Endpoint(
-                    url: URL(target: target).absoluteString,
-                    sampleResponseClosure: { sample },
-                    method: target.method,
-                    task: target.task,
-                    httpHeaderFields: target.headers
-                )
-            },
-            stubClosure: { _ in behavior }
-        )
-        return APIService(provider: provider)
-    }
-}
