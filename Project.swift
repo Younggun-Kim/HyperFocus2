@@ -1,6 +1,7 @@
 import ProjectDescription
 import ProjectDescriptionHelpers
 
+
 let project = Project(
     name: "HyperFocus",
     targets: [
@@ -99,6 +100,7 @@ let project = Project(
             dependencies: [
                 .target(name: "Domain"),
                 .external(name: "Dependencies"),
+                .external(name: "Moya"),
             ]
         ),
 
@@ -106,6 +108,20 @@ let project = Project(
         .module(
             name: "Util",
             path: "./Modules/Core/Util"
+        ),
+        .module(
+            name: "CoreNetwork",
+            path: "./Modules/Core/CoreNetwork",
+            dependencies: [
+                .external(name: "Moya"),
+            ]
+        ),
+        .moduleTests(
+            name: "CoreNetwork",
+            path: "./Modules/Core/CoreNetwork",
+            dependencies: [
+                .external(name: "Moya"),
+            ]
         ),
     ]
 )
