@@ -60,6 +60,24 @@ struct APIServiceTests {
             return
         }
     }
+
+    /// nginx·로드밸런서가 HTML 에러 페이지를 돌려주는 경우.
+    /// 네트워크 오류로 분류되면 6단계의 "네트워크 오류면 세션 유지" 구분이 깨진다.
+    @Test func 본문이_HTML인_502도_httpError를_던진다() async throws {
+        let html = "<html><body>502 Bad Gateway</body></html>"
+        let service = APIService.stub(.networkResponse(502, Data(html.utf8)))
+
+        let error = await #expect(throws: APIError.self) {
+            try await service.request(StubTarget(), responseType: User.self)
+        }
+
+        guard case .httpError(let statusCode, let message) = error else {
+            Issue.record("httpError가 아님: \(String(describing: error))")
+            return
+        }
+        #expect(statusCode == 502)
+        #expect(message == nil)
+    }
 }
 
 // MARK: - Fixtures

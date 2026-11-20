@@ -40,14 +40,15 @@ extension APIError {
                 message: serverMessage
             )
         case .underlying(let error, let response):
-            if let response = response,
-               let serverMessage = parseServerMessage(from: response.data) {
+            // 응답이 있다 = 서버까지 갔다 왔다. 본문이 JSON이 아니어도(HTML 에러 페이지, 파일 등) httpError.
+            // Moya는 validationType 실패를 .underlying(.statusCode, response)로 감싸서 여기로 온다.
+            if let response {
                 return .httpError(
                     statusCode: response.statusCode,
-                    message: serverMessage
+                    message: parseServerMessage(from: response.data)
                 )
             }
-            
+
             if (error as NSError).code == NSURLErrorCancelled {
                 return .cancelled
             }
