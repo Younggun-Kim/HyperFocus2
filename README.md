@@ -129,6 +129,7 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 │           └── Tests/
 ├── docs/
 │   ├── tuist-roadmap.md
+│   ├── network-roadmap.md   # APIService 단계별 재구성
 │   └── blog/                # 주차별 학습 정리
 └── mise.toml                # Tuist 버전 고정
 ```
@@ -240,6 +241,7 @@ MacBook Pro(M3 Pro, 18GB), Xcode 27.2, Tuist 4.216.2에서 항목마다 3회 잰
 ## 문서
 
 - [Tuist 로드맵: 매니페스트부터 CI까지](docs/tuist-roadmap.md)
+- [APIService 재구성 로드맵: 가장 단순한 request부터 토큰 갱신까지](docs/network-roadmap.md)
 - [Tuist 1주차: 매니페스트로 iOS 프로젝트 만들기](docs/blog/week1-manifest.md)
 - [Tuist 2주차: 모듈 설계부터 Feature 분리와 의존성 검증까지](docs/blog/week2-modularization.md)
 - [Tuist 3주차: 바이너리 캐시와 선택적 테스트를 숫자로 확인하기, 그리고 scaffold](docs/blog/week3-measure.md)
