@@ -1,5 +1,5 @@
 import ComposableArchitecture
-import Data
+import Domain
 import SwiftUI
 
 public struct SessionHistoryView: View {

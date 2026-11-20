@@ -30,6 +30,7 @@ let project = Project(
             dependencies: [
                 .target(name: "FocusTimer"),
                 .target(name: "SessionHistory"),
+                .target(name: "Data"),
                 .external(name: "ComposableArchitecture"),
             ],
             settings: .settings(
@@ -51,7 +52,7 @@ let project = Project(
             ],
             dependencies: [
                 .target(name: "HyperFocus"),
-                .target(name: "Data"),
+                .target(name: "Domain"),
                 .external(name: "ComposableArchitecture"),
             ]
         ),
@@ -76,16 +77,28 @@ let project = Project(
     )
     + Target.feature(
         name: "SessionHistory",
-        dependencies: [.target(name: "Data")]
+        dependencies: [.target(name: "Domain")]
     )
     + [
+        // MARK: - Domain
+        // 내부 모듈에 의존하지 않는다. Entity, Repository 포트, UseCase
+        .module(
+            name: "Domain",
+            path: "./Modules/Domain",
+            dependencies: [
+                .external(name: "Dependencies"),
+                .external(name: "DependenciesMacros"),
+            ]
+        ),
+
         // MARK: - Data
+        // Domain의 Repository 포트를 구현한다. App만 링크하고 bootstrap()으로 등록
         .module(
             name: "Data",
             path: "./Modules/Data",
             dependencies: [
+                .target(name: "Domain"),
                 .external(name: "Dependencies"),
-                .external(name: "DependenciesMacros"),
             ]
         ),
 

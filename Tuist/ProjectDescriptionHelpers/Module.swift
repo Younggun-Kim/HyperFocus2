@@ -7,7 +7,7 @@ public enum Module {
 }
 
 extension Target {
-    /// `Modules/` 아래의 정적 프레임워크 모듈 (Core, Data 등)
+    /// `Modules/` 아래의 정적 프레임워크 모듈 (Core, Domain, Data 등)
     public static func module(
         name: String,
         path: String,
@@ -29,7 +29,8 @@ extension Target {
     ///
     /// - Feature는 ComposableArchitecture를 기본으로 의존한다.
     /// - Example과 Tests는 Feature와 그 의존성까지 선언한다.
-    ///   mock 주입(`prepareDependencies`, `TestStore`)에서 Data의 Model·Client를 직접 import하기 때문이다.
+    ///   mock 주입(`prepareDependencies`, `TestStore`)에서 Domain의 Entity·UseCase·Repository 포트를 직접 import하기 때문이다.
+    /// - Feature의 의존성에 Data를 넣지 않는다. Data는 App만 링크한다.
     public static func feature(
         name: String,
         dependencies: [TargetDependency] = []

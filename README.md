@@ -6,6 +6,7 @@ HyperFocus 앱을 [Tuist](https://tuist.dev) 기반 프로젝트로 다시 구�
 > - 1주차: 앱·유닛 테스트·UI 테스트 타깃과 Debug/Release 설정(앱 이름, App Group) 분리
 > - 2주차: [아키텍처](#아키텍처) 확정, Feature 2개(FocusTimer, SessionHistory)와 Data·Core/Utils 모듈 분리, 암묵적 의존 검사 통과
 > - 3주차: 바이너리 캐시와 선택적 테스트 측정([결과](#측정-결과)), [새 Feature를 만드는 scaffold 템플릿](#새-feature-추가하기) 추가
+> - 4주차 전: 아키텍처를 [클린 아키텍처 + `DataModule.bootstrap()`](#아키텍처)으로 전환 (Domain 모듈 추가, Feature는 Data를 링크하지 않음)
 
 ## 목표
 
@@ -113,9 +114,13 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 │   ├── Core/
 │   │   ├── Utils/Sources/   # 공용 유틸
 │   │   └── Network/         # (예정) 통신 공통 코드
-│   ├── Data/Sources/
-│   │   ├── Client/          # public: XxxClient (선언 + liveValue, 같은 파일)
-│   │   ├── Model/           # public: 모델
+│   ├── Domain/Sources/      # 내부 모듈 의존 없음
+│   │   ├── Entity/          # public: 모델 (struct)
+│   │   ├── Repository/      # public: XxxRepository 포트 (선언 + testValue/previewValue)
+│   │   └── UseCase/         # public: XxxUseCase (선언 + liveValue, 같은 파일)
+│   ├── Data/Sources/        # App만 링크
+│   │   ├── DataModule.swift # bootstrap(): 모든 Repository의 liveValue 등록
+│   │   ├── Repository/      # XxxRepository+Live.swift (DependencyKey 채택)
 │   │   └── DataSource/      # internal: Local(SwiftData, UserDefaults), Remote(API)
 │   └── Features/            # 기능 모듈 (FocusTimer, SessionHistory)
 │       └── FocusTimer/
@@ -143,7 +148,7 @@ tuist scaffold Feature --name Settings
 // 2. Project.swift의 Features 구간에 그래프 연결 (의존성은 Feature마다 직접 정함)
     + Target.feature(
         name: "Settings",
-        dependencies: [.target(name: "Data")]
+        dependencies: [.target(name: "Domain")]
     )
 ```
 
@@ -158,41 +163,56 @@ tuist test Settings --device "iPhone 17 Pro"
 
 ## 아키텍처
 
-[TMA(The Modular Architecture)](https://docs.tuist.dev/en/guides/features/projects/tma-architecture) 방식으로 기능(Feature)을 나누고, 데이터 접근은 Data 모듈 하나가 맡습니다. 처음에는 클린 아키텍처(Domain / Data / Presentation)로 설계했지만, 계층 사이의 순환 의존과 정적 링크 문제, 단순 위임만 하는 UseCase가 반복돼서 더 단순한 구조로 바꿨습니다.
+클린 아키텍처(Domain / Data / Presentation)를 Tuist 모듈로 나누고, 화면 단위는 [TMA](https://docs.tuist.dev/en/guides/features/projects/tma-architecture) 방식의 Feature 모듈로 만듭니다. Domain이 Repository 포트를 선언하고 Data가 그 구현을 제공하는 의존성 역전(DIP) 구조입니다.
+
+```
+App ──→ Feature ──→ Domain ←── Data
+ └───────────────────────────────┘   (App만 Data를 링크하고 DataModule.bootstrap() 호출)
+```
 
 | 모듈 | 의존하는 대상 |
 | --- | --- |
-| App | Features, ComposableArchitecture |
-| `<Feature>Example`, `<Feature>Tests` | `<Feature>`와 그 의존성 (mock 주입 시 Data를 직접 import) |
-| `<Feature>` | Data, Core/Utils, ComposableArchitecture |
-| Data | Core/Network, Core/Utils, Dependencies |
+| App | Features, Data, ComposableArchitecture |
+| `<Feature>Example`, `<Feature>Tests` | `<Feature>`와 그 의존성 (Data는 넣지 않음) |
+| `<Feature>` | Domain, Core/Utils, ComposableArchitecture |
+| Domain | Dependencies (내부 모듈 의존 없음) |
+| Data | Domain, Core/Network, Core/Utils, Dependencies |
 | Core | 내부 모듈 의존 없음 |
+
+### 왜 `bootstrap()`이 필요한가
+
+swift-dependencies는 `liveValue`를 컴파일 타임에 호출하지 않고, 런타임에 "이 키가 `DependencyKey`를 채택했는가"를 조회해서 찾습니다. 정적 라이브러리에서 링커는 참조되는 심볼이 있는 오브젝트 파일만 바이너리에 넣는데, Feature는 Domain의 포트만 참조하므로 Data의 구현 파일을 참조하는 코드가 하나도 없습니다. 그러면 구현이 링크 단계에서 빠지고, 런타임에 live 구현이 없다는 오류가 납니다.
+
+`DataModule.bootstrap()`은 각 Repository의 `liveValue`를 코드로 직접 참조해 링크를 보장하고, `prepareDependencies`로 한 번에 등록합니다. 앱 진입점(`HyperFocusApp.init`)에서 Store를 만들기 전에 호출합니다.
 
 ### 규칙
 
+- **Feature는 UseCase만 사용합니다.** Repository를 직접 `@Dependency`로 쓰지 않습니다. Repository는 Domain이 Data에 요구하는 경계 포트이고, Presentation의 진입점은 UseCase로 통일합니다. 같은 Domain 모듈에 있어 그래프로는 막히지 않으므로 리뷰와 CI 검사로 지킵니다.
 - **Feature끼리는 서로 의존하지 않습니다.** 화면 이동은 부모 Reducer가 자식의 위임(delegate) 액션을 받아서 처리합니다.
-- **Data의 공개 범위는 `Client`와 `Model`뿐입니다.** DataSource는 `internal`로 숨깁니다.
-- **별도의 Entity 계층은 두지 않습니다. Data의 `Model`이 그 역할을 합니다.** SwiftData `@Model`과 API DTO는 DataSource에 `internal`로 두고, 클라이언트의 `liveValue`에서 `Model`로 변환해 반환합니다. Feature 코드에 `import SwiftData`가 나타나면 경계가 새고 있다는 신호입니다.
-- **클라이언트의 선언과 `liveValue`는 같은 파일에 둡니다.** Feature가 선언을 참조하면 실제 구현도 함께 링크되게 하기 위해서입니다.
-- **Example 앱은 mock을 명시적으로 주입합니다**(`prepareDependencies`). 주입하지 않으면 실제 SwiftData에 접근합니다.
+- **Domain은 내부 모듈에 의존하지 않습니다.** SwiftData `@Model`과 API DTO는 Data의 DataSource에 `internal`로 두고, Repository의 `liveValue`에서 Entity로 변환해 반환합니다. Feature나 Domain에 `import SwiftData`가 나타나면 경계가 새고 있다는 신호입니다.
+- **Repository를 새로 만들면 `DataModule.bootstrap()`에 반드시 등록합니다.** 빠뜨려도 컴파일은 통과하고 런타임에서야 실패합니다.
+- **UseCase의 선언과 `liveValue`는 같은 파일에 둡니다.** UseCase 구현은 Repository 포트만 쓰므로 Domain 안에서 끝나고, Feature가 선언을 참조할 때 구현도 함께 링크됩니다.
+- **Example 앱과 테스트는 Data를 링크하지 않고 mock을 명시적으로 주입합니다**(`prepareDependencies`, `TestStore`의 `withDependencies`). Repository 포트에 mock을 넣으면 UseCase는 실제 로직대로 동작합니다.
 - 암묵적 의존은 `tuist inspect dependencies --only implicit`으로 검사합니다.
 
 ### 로직을 둘 위치
 
 | 로직 | 위치 |
 | --- | --- |
-| 데이터와 묶인 규칙 | Data 클라이언트의 `liveValue` |
+| 비즈니스 규칙, 여러 Repository 조합 | Domain의 UseCase `liveValue` |
+| 저장 방식과 묶인 처리(조회, 변환, 캐시) | Data의 Repository `liveValue` |
 | 화면 상태, 흐름, 화면 이동 | Reducer |
-| 여러 Feature가 함께 쓰는 순수 계산 | Data 모델의 extension 또는 순수 함수 |
+| 여러 Feature가 함께 쓰는 순수 계산 | Domain Entity의 extension 또는 순수 함수 |
 
 ### 팀 규칙
 
-1. 경계는 struct 기반 클라이언트(`@Sendable` 클로저의 묶음)로 만들고, 이름은 `XxxClient`로 합니다.
+1. 경계는 struct 기반 클라이언트(`@Sendable` 클로저의 묶음, `@DependencyClient`)로 만듭니다. 데이터 경계는 `XxxRepository`, 비즈니스 동작은 `XxxUseCase`로 이름 짓습니다.
 2. DataSource는 구체 타입으로 두고 swift-dependencies로 주입하지 않습니다.
 3. 경계의 함수 시그니처는 처음부터 `async throws`로 만듭니다.
-4. 모델은 `public struct`이고 `Sendable`, `Equatable`, `Identifiable`을 명시하며 `public init`을 직접 작성합니다. 저장 방식(SwiftData, API)에 의존하는 타입은 모델에 넣지 않습니다.
+4. Entity는 `public struct`이고 `Sendable`, `Equatable`, `Identifiable`을 명시하며 `public init`을 직접 작성합니다. 저장 방식(SwiftData, API)에 의존하는 타입은 넣지 않습니다.
+5. 모든 Repository 앞에는 UseCase를 둡니다. 단순 위임이라도 만들며, Feature의 진입점을 UseCase로 통일하기 위해서입니다.
 
-> Data를 `DataInterface`와 구현으로 나누는 건 Example 앱 빌드가 무거워지거나, Data를 고칠 때마다 Feature가 다시 빌드되는 게 느려질 때 다시 검토합니다. 나눌 때는 `Model`과 클라이언트 선언을 `DataInterface`로 옮기고, 정적 링크에서 `liveValue`가 빠지지 않도록 앱 진입점에서 Data의 등록 함수(`DataModule.bootstrap()`)를 호출합니다.
+> 2주차에는 클린 아키텍처를 시도했다가 TMA + Data 단일 모듈로 바꿨습니다(순환 의존, 정적 링크에서 `liveValue`가 빠지는 문제, 단순 위임 UseCase). 이후 링크 문제의 원인을 확인하고 `bootstrap()`으로 해결할 수 있게 되어, Feature가 Data 구현을 모르는 클린 아키텍처로 다시 전환했습니다. 순환은 Domain이 내부 모듈에 의존하지 않는 규칙으로 막습니다.
 
 ## 진행 상황
 

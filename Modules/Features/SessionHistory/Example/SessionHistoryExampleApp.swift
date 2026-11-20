@@ -1,15 +1,15 @@
 import ComposableArchitecture
-import Data
+import Domain
 import SwiftUI
 import SessionHistory
 
 @main
 struct SessionHistoryExampleApp: App {
     init() {
-        // Data가 링크되어 있으므로 주입하지 않으면 liveValue(실제 저장소)를 쓴다.
-        // 예제 앱은 mock을 명시적으로 넣는다.
+        // 예제 앱은 Data를 링크하지 않으므로 Repository의 live 구현이 없다.
+        // Repository 포트에 mock을 넣으면 UseCase는 실제 로직(liveValue)대로 동작한다.
         prepareDependencies {
-            $0.sampleClient.getSamples = {
+            $0.sampleRepository.fetchSamples = {
                 [Sample(id: "example-1"), Sample(id: "example-2"), Sample(id: "example-3")]
             }
         }

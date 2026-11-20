@@ -1,5 +1,5 @@
 import ComposableArchitecture
-import Data
+import Domain
 
 @Reducer
 public struct SessionHistoryFeature {
@@ -23,7 +23,7 @@ public struct SessionHistoryFeature {
         public let message: String
     }
 
-    @Dependency(\.sampleClient) var sampleClient
+    @Dependency(\.fetchSamplesUseCase) var fetchSamplesUseCase
 
     public init() {}
 
@@ -33,7 +33,7 @@ public struct SessionHistoryFeature {
             case .onAppear, .reload:
                 return .run { send in
                     do {
-                        let samples = try await sampleClient.getSamples()
+                        let samples = try await fetchSamplesUseCase.execute()
                         await send(.samplesResponse(.success(samples)))
                     } catch {
                         await send(.samplesResponse(.failure(LoadError(message: "\(error)"))))

@@ -1,5 +1,5 @@
 import ComposableArchitecture
-import Data
+import Domain
 import Testing
 @testable import HyperFocus
 
@@ -10,7 +10,7 @@ struct RootFeatureTests {
         let store = TestStore(initialState: RootFeature.State()) {
             RootFeature()
         } withDependencies: {
-            $0.sampleClient.getSamples = { samples }
+            $0.fetchSamplesUseCase.execute = { samples }
         }
 
         await store.send(.timer(.delegate(.sessionFinished(seconds: 1500))))

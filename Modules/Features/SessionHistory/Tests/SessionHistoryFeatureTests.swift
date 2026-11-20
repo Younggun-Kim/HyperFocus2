@@ -1,5 +1,5 @@
 import ComposableArchitecture
-import Data
+import Domain
 import Testing
 @testable import SessionHistory
 
@@ -10,7 +10,7 @@ struct SessionHistoryFeatureTests {
         let store = TestStore(initialState: SessionHistoryFeature.State()) {
             SessionHistoryFeature()
         } withDependencies: {
-            $0.sampleClient.getSamples = { samples }
+            $0.fetchSamplesUseCase.execute = { samples }
         }
 
         await store.send(.onAppear)
@@ -22,7 +22,7 @@ struct SessionHistoryFeatureTests {
         let store = TestStore(initialState: SessionHistoryFeature.State()) {
             SessionHistoryFeature()
         } withDependencies: {
-            $0.sampleClient.getSamples = { throw Failure() }
+            $0.fetchSamplesUseCase.execute = { throw Failure() }
         }
 
         await store.send(.onAppear)
