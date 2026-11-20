@@ -73,7 +73,7 @@ let project = Project(
     ]
     + Target.feature(
         name: "FocusTimer",
-        dependencies: [.target(name: "Utils")]
+        dependencies: [.target(name: "Util")]
     )
     + Target.feature(
         name: "SessionHistory",
@@ -104,8 +104,8 @@ let project = Project(
 
         // MARK: - Core
         .module(
-            name: "Utils",
-            path: "./Modules/Core/Utils"
+            name: "Util",
+            path: "./Modules/Core/Util"
         ),
     ]
 )

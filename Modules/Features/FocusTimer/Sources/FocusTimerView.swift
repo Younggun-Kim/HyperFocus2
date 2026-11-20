@@ -1,6 +1,6 @@
 import ComposableArchitecture
 import SwiftUI
-import Utils
+import Util
 
 public struct FocusTimerView: View {
     let store: StoreOf<FocusTimerFeature>
