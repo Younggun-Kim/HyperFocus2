@@ -9,12 +9,6 @@ import Foundation
 import Synchronization
 import Testing
 
-/// `URLSession`에 끼워 실제 네트워크 대신 응답을 돌려주는 mock.
-///
-/// Moya stub과 달리 Alamofire `Session`을 거치므로 인터셉터까지 실행된다.
-///
-/// Swift Testing은 테스트를 병렬로 실행한다. handler를 하나만 두면 테스트끼리 덮어쓰므로,
-/// 테스트마다 고유한 host를 발급하고 요청의 host로 handler를 찾는다.
 final class MockURLProtocol: URLProtocol {
     typealias Handler = @Sendable (URLRequest) throws -> (HTTPURLResponse, Data)
 

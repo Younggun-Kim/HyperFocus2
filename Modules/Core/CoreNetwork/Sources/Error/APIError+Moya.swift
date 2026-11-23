@@ -35,6 +35,15 @@ extension APIError {
         return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
     }
 
+    /// 토큰이 없으면 `AuthenticationInterceptor`가 요청을 보내지 않고
+    /// `AFError.requestAdaptationFailed(AuthenticationError.missingCredential)`로 끝낸다.
+    private static func isMissingCredential(_ error: Error) -> Bool {
+        guard case .requestAdaptationFailed(let underlying)? = error.asAFError else {
+            return false
+        }
+        return (underlying as? AuthenticationError) == .missingCredential
+    }
+
     public static func from(_ error: MoyaError) -> APIError {
         switch error {
         case .imageMapping, .jsonMapping, .stringMapping, .objectMapping:
@@ -63,6 +72,10 @@ extension APIError {
 
             if isCancellation(error) {
                 return .cancelled
+            }
+
+            if isMissingCredential(error) {
+                return .tokenNotFound
             }
             
             return .networkError(error.localizedDescription)

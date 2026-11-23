@@ -6,15 +6,9 @@
 //
 
 struct NetworkHeader {
-    
+
     static let basic: [String: String] =  [
         "Content-Type": "application/json",
         "Accept": "application/json"
     ]
-    
-    static let authorization: [String: String] = {
-        var result = basic
-        result["Authorization"] = ""
-        return result
-    }()
 }

@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Alamofire
 import Moya
 import Synchronization
 
@@ -23,9 +24,30 @@ public protocol APIServiceProtocol {
 
 public struct APIService: APIServiceProtocol {
     private let provider: MoyaProvider<MultiTarget>
-    
-    public init(provider: MoyaProvider<MultiTarget>) {
+    private let authProvider: MoyaProvider<MultiTarget>
+
+    public init(
+        tokenManager: TokenManager,
+        configuration: URLSessionConfiguration = .af.default
+    ) {
+        self.init(
+            provider: MoyaProvider(
+                session: Session(configuration: configuration, startRequestsImmediately: false)
+            ),
+            authProvider: MoyaProvider(
+                session: Session(
+                    configuration: configuration,
+                    startRequestsImmediately: false,
+                    interceptor: tokenManager.interceptor
+                )
+            )
+        )
+    }
+
+    /// `requiresAuth`에 따라 `authProvider`(인터셉터 있음)와 `provider`(없음) 중 하나로 보낸다.
+    init(provider: MoyaProvider<MultiTarget>, authProvider: MoyaProvider<MultiTarget>) {
         self.provider = provider
+        self.authProvider = authProvider
     }
     
     public func request<T: BaseTarget, D: Decodable & Sendable>(
@@ -58,6 +80,7 @@ public struct APIService: APIServiceProtocol {
     private func send<T: BaseTarget>(_ target: T) async throws -> Data {
         // 요청마다 새로 만드는 상자. operation과 onCancel이 서로 다른 스레드에서 열 수 있어서 Mutex로 감싼다.
         let state = Mutex<RequestState>(.idle)
+        let provider = target.requiresAuth ? authProvider : self.provider
 
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in

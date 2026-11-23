@@ -16,6 +16,7 @@ struct User: Decodable, Sendable, Equatable {
 struct StubTarget: BaseTarget {
     /// `MockURLProtocol.register`가 돌려준 host. Moya stub에서는 쓰이지 않는다.
     var host = "example.com"
+    var requiresAuth = true
 
     var baseURL: URL { URL(string: "https://\(host)")! }
     var path: String { "/stub" }
@@ -43,6 +44,6 @@ extension APIService {
             },
             stubClosure: { _ in behavior }
         )
-        return APIService(provider: provider)
+        return APIService(provider: provider, authProvider: provider)
     }
 }

@@ -11,9 +11,9 @@
 | 0 | 가장 단순한 `request` | ✅ 완료 (`7cf2783`) |
 | 1 | 공통 디코더 | ✅ 완료 |
 | 2 | 핵심 함수 `send` 분리 + `requestData` | ✅ 완료 (반환 타입 변경은 보류) |
-| 3 | 취소 지원 | ✅ 완료 (`AFError` 경로 검증은 4단계) |
-| 4 | 토큰 주입 인터셉터 (`RequestAdapter`) | ⬜ |
-| 5 | `AuthenticationInterceptor` (갱신·재시도·경합) | ⬜ |
+| 3 | 취소 지원 | ✅ 완료 |
+| 4 | 토큰 주입 (`requiresAuth`, `TokenManager`) | ✅ 완료 |
+| 5 | `AuthenticationInterceptor` (갱신·재시도·경합) | ✅ 완료 |
 | 6 | 갱신 실패 구분 + 세션 만료 1회 발행 | ⬜ |
 | 7 | 선제 갱신 (`expiresIn`) | ⬜ |
 | 별도 | Keychain 이전, 로깅, 반환 타입 `D` (설계 확정) | ⬜ |
@@ -197,7 +197,7 @@ send(target) -> Data      ← 이후 단계의 공통 처리가 모두 여기에
 
 - [x] 요청 중에 Task를 취소하면 `.cancelled` (`delayedStub`)
 - [x] 이미 취소된 Task에서 호출해도 `.cancelled`
-- [ ] `AFError.explicitlyCancelled` 경로 → 4단계의 `URLProtocol` mock으로 검증
+- [x] `AFError.explicitlyCancelled` 경로 (4단계에서 `URLProtocol` mock으로 검증)
 
 **4단계 전에 준비할 것**: `URLProtocol` mock. 아래 주의 사항을 참고하세요.
 
@@ -205,21 +205,37 @@ send(target) -> Data      ← 이후 단계의 공통 처리가 모두 여기에
 
 ---
 
-## 4단계: 토큰 주입 인터셉터
+## 4단계: 토큰 주입 ✅
 
-**목표**: `NetworkAuthPlugin`을 `RequestAdapter`로 대체합니다. 아직 갱신은 하지 않습니다.
+**목표**: `NetworkAuthPlugin`을 인터셉터로 대체합니다. 아직 갱신은 하지 않습니다.
 
 **함께 정리할 것**: `"Authorization": ""` 빈 헤더 대신 `BaseTarget.requiresAuth: Bool`로 인증 필요 여부를 명시합니다. 토큰 타입은 하드코딩한 `"Bearer"` 대신 서버가 주는 `tokenType`을 씁니다.
 
+**구현** (4·5단계를 함께 구현)
+
+- 어댑터를 따로 만들지 않고 처음부터 `AuthenticationInterceptor`의 `apply`로 주입합니다. 5단계에서 어차피 교체되기 때문입니다.
+- `requiresAuth`는 **provider를 두 개** 두어 구분합니다. `APIService`가 `requiresAuth`를 보고 인터셉터가 달린 `authProvider`와 인터셉터가 없는 `provider` 중 하나로 보냅니다.
+  - 인터셉터는 `URLRequest`만 받으므로 target 정보를 알 수 없습니다. 표시용 헤더를 심는 방법도 있지만, `AuthenticationInterceptor`는 토큰이 없으면 모든 요청을 `missingCredential`로 막습니다. 그래서 인증이 필요 없는 요청(로그인, 갱신)은 아예 인터셉터를 거치지 않게 했습니다.
+  - 갱신 요청이 인터셉터를 다시 타는 루프(5단계 주의 사항)도 같은 방법으로 막힙니다.
+- 토큰은 `TokenStorage` 프로토콜로 추상화하고, 구현은 Data 계층이 주입합니다.
+- `TokenManager`가 메모리(인터셉터의 `credential`)와 저장소를 함께 바꿉니다. 로그인·로그아웃은 `update(_:)`를 부릅니다.
+- 토큰이 없으면 Alamofire가 `AFError.requestAdaptationFailed(AuthenticationError.missingCredential)`로 끝내고, `APIError.from`이 이를 `.tokenNotFound`로 바꿉니다.
+
+**확인된 사실**
+
+- Moya는 플러그인용 인터셉터를 요청마다 넘기고, Alamofire는 그것과 `Session`의 인터셉터를 합쳐서 둘 다 실행합니다 (`Session.adapter(for:)`).
+- `AuthenticationInterceptor`는 `credential`을 메모리에만 들고 있습니다. 저장소만 바꾸면 인터셉터는 모르므로 `TokenManager.update`로 둘을 함께 바꿉니다.
+
 **통과 기준**
 
-- [ ] `requiresAuth == true`인 요청에 `Bearer <token>` 헤더가 붙음
-- [ ] 토큰이 없으면 요청을 보내지 않고 `.tokenNotFound`
-- [ ] `NetworkAuthPlugin` 삭제
+- [x] `requiresAuth == true`인 요청에 `<tokenType> <token>` 헤더가 붙음
+- [x] `requiresAuth == false`인 요청은 토큰이 없어도 헤더 없이 나감
+- [x] 토큰이 없으면 요청을 보내지 않고 `.tokenNotFound`
+- [x] `NetworkHeader.authorization` 삭제 (이 레포에는 `NetworkAuthPlugin`이 없음)
 
 ---
 
-## 5단계: AuthenticationInterceptor
+## 5단계: AuthenticationInterceptor ✅
 
 **목표**: 갱신, 재시도, 경합 처리를 Alamofire에 맡깁니다.
 
@@ -237,12 +253,23 @@ send(target) -> Data      ← 이후 단계의 공통 처리가 모두 여기에
 - 갱신 요청(`/auth/refresh`)이 다시 인터셉터를 타면 루프가 생깁니다. 인터셉터가 없는 Session을 따로 둡니다.
 - Alamofire의 재시도는 요청이 **실패했을 때만** 동작합니다. 401이 실패로 처리되도록 `validationType = .successCodes`를 유지합니다.
 
+**구현** (`TokenAuthenticator`)
+
+- `didRequest`: 상태 코드가 401인지만 봅니다.
+- `isRequest`: 요청의 `Authorization` 헤더가 현재 토큰과 같은지 비교합니다.
+- `refresh`: 주입받은 갱신 클로저를 `Task`로 실행하고, 성공하면 저장소에 저장합니다. 갱신 API 호출은 Data 계층이 `requiresAuth == false`인 target으로 구현해 넘깁니다.
+
+**확인된 사실**
+
+- 갱신에 실패하면 Alamofire가 `.doNotRetryWithError`로 끝냅니다. 401 응답이 있으므로 지금은 `httpError(401)`이 됩니다. 세션 만료와의 구분은 6단계에서 합니다.
+
 **통과 기준**
 
-- [ ] 401 → 갱신 → 재시도 성공
-- [ ] 동시에 401이 와도 갱신은 1번
-- [ ] 갱신 직후에 늦게 도착한 401은 갱신 없이 재시도
-- [ ] `TokenRefreshManager`와 401 재시도 블록 삭제
+- [x] 401 → 갱신 → 재시도 성공
+- [x] 동시에 401이 와도 갱신은 1번
+- [x] 갱신 직후에 늦게 도착한 401은 갱신 없이 재시도
+- [x] 갱신에 실패하면 재시도하지 않음
+- [x] `TokenRefreshManager`와 401 재시도 블록 삭제 (이 레포에는 처음부터 없음. 기존 앱으로 옮길 때 삭제)
 
 ---
 
