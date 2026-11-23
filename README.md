@@ -4,7 +4,7 @@ HyperFocus 앱을 [Tuist](https://tuist.dev) 기반 프로젝트로 다시 구�
 
 > 🚧 3주차까지 마쳤고, 4주차(CI)를 진행 중입니다. 워크플로는 작성했고 GitHub에서 첫 실행을 확인해야 합니다.
 > - 1주차: 앱·유닛 테스트·UI 테스트 타깃과 Debug/Release 설정(앱 이름, App Group) 분리
-> - 2주차: [아키텍처](#아키텍처) 확정, Feature 2개(FocusTimer, SessionHistory)와 Data·Core/Utils 모듈 분리, 암묵적 의존 검사 통과
+> - 2주차: [아키텍처](#아키텍처) 확정, Feature 2개(FocusTimer, SessionHistory)와 Data·Core/Util 모듈 분리, 암묵적 의존 검사 통과
 > - 3주차: 바이너리 캐시와 선택적 테스트 측정([결과](#측정-결과)), [새 Feature를 만드는 scaffold 템플릿](#새-feature-추가하기) 추가
 > - 4주차 전: 아키텍처를 [클린 아키텍처 + `DataModule.bootstrap()`](#아키텍처)으로 전환 (Domain 모듈 추가, Feature는 Data를 링크하지 않음)
 
@@ -38,7 +38,7 @@ cd HyperFocus_Refactoring
 mise install
 tuist version   # 4.216.2가 나오면 정상
 
-# 3. 외부 의존성 가져오기 (Tuist/Package.swift: swift-dependencies, TCA)
+# 3. 외부 의존성 가져오기 (Tuist/Package.swift: swift-dependencies, TCA, Moya)
 tuist install
 
 # 4. Xcode 프로젝트 생성 후 열기
@@ -111,7 +111,7 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 .
 ├── Tuist.swift              # 프로젝트 루트 표시 및 생성 옵션
 ├── Tuist/
-│   ├── Package.swift        # 외부 의존성 (SPM: swift-dependencies, TCA)
+│   ├── Package.swift        # 외부 의존성 (SPM: swift-dependencies, TCA, Moya)
 │   ├── ProjectDescriptionHelpers/
 │   │   └── Module.swift     # Target.module(...), Target.feature(...) helper
 │   └── Templates/
@@ -127,8 +127,8 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 │       └── Release.xcconfig # Release 빌드 설정 (앱 타깃)
 ├── Modules/                 # 라이브러리 모듈 (모두 staticFramework)
 │   ├── Core/
-│   │   ├── Utils/Sources/   # 공용 유틸
-│   │   └── Network/         # (예정) 통신 공통 코드
+│   │   ├── Util/Sources/    # 공용 유틸
+│   │   └── CoreNetwork/     # 통신 공통 코드 (APIService, 인터셉터) + Tests
 │   ├── Domain/Sources/      # 내부 모듈 의존 없음
 │   │   ├── Entity/          # public: 모델 (struct)
 │   │   ├── Repository/      # public: XxxRepository 포트 (선언 + testValue/previewValue)
@@ -190,10 +190,11 @@ App ──→ Feature ──→ Domain ←── Data
 | --- | --- |
 | App | Features, Data, ComposableArchitecture |
 | `<Feature>Example`, `<Feature>Tests` | `<Feature>`와 그 의존성 (Data는 넣지 않음) |
-| `<Feature>` | Domain, Core/Utils, ComposableArchitecture |
+| `<Feature>` | Feature마다 직접 정함 (FocusTimer: Util, SessionHistory: Domain) + ComposableArchitecture |
 | Domain | Dependencies (내부 모듈 의존 없음) |
-| Data | Domain, Core/Network, Core/Utils, Dependencies |
-| Core | 내부 모듈 의존 없음 |
+| Data | Domain, Dependencies, Moya |
+| Util | 의존 없음 |
+| CoreNetwork | Moya, Alamofire (내부 모듈 의존 없음) |
 
 ### 왜 `bootstrap()`이 필요한가
 
