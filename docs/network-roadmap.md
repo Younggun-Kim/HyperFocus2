@@ -14,7 +14,7 @@
 | 3 | 취소 지원 | ✅ 완료 |
 | 4 | 토큰 주입 (`requiresAuth`, `TokenManager`) | ✅ 완료 |
 | 5 | `AuthenticationInterceptor` (갱신·재시도·경합) | ✅ 완료 |
-| 6 | 갱신 실패 구분 + 세션 만료 1회 발행 | ⬜ |
+| 6 | 갱신 실패 구분 + 세션 만료 1회 발행 | ✅ 완료 |
 | 7 | 선제 갱신 (`expiresIn`) | ⬜ |
 | 별도 | Keychain 이전, 로깅, 반환 타입 `D` (설계 확정) | ⬜ |
 
@@ -273,7 +273,7 @@ send(target) -> Data      ← 이후 단계의 공통 처리가 모두 여기에
 
 ---
 
-## 6단계: 갱신 실패 구분 + 세션 만료 1회 발행
+## 6단계: 갱신 실패 구분 + 세션 만료 1회 발행 ✅
 
 **목표**: 갱신 결과를 세 가지로 나누고, 세션 만료는 정말 만료됐을 때 한 번만 알립니다.
 
@@ -285,10 +285,33 @@ send(target) -> Data      ← 이후 단계의 공통 처리가 모두 여기에
 
 **힌트**: `refresh`는 동시에 한 번만 실행되므로, 세션 만료 발행을 `refresh`의 실패 분기에 두면 자연스럽게 한 번만 발행됩니다.
 
+**구현**
+
+- `TokenAuthenticator.refresh`가 갱신 클로저의 에러를 보고 나눕니다. `APIError.httpError`의 401/403이면 refresh token 거절, 그 밖(응답이 없는 실패)은 일시적 실패입니다. 갱신 API는 Data 계층이 `APIService`로 부르므로 에러가 항상 `APIError`로 옵니다.
+- 거절이면 `onSessionExpired`를 부른 **뒤에** `APIError.sessionExpired`로 끝냅니다. 일시적 실패는 받은 에러를 그대로 넘기고 토큰을 건드리지 않습니다.
+- 바깥으로 알리는 통로는 `TokenManager(storage:refresh:onSessionExpired:)` 클로저입니다. CoreNetwork는 위 계층(자동 로그인 등)을 모른 채 알리기만 합니다.
+- 세션이 만료되면 `TokenManager`가 저장소와 인터셉터의 토큰을 지웁니다. 그 뒤의 요청은 서버로 나가지 않고 `.tokenNotFound`로 끝나므로, 옛 토큰으로 다시 401을 받아 갱신과 만료 알림이 반복되지 않습니다.
+  - authenticator가 interceptor보다 먼저 만들어져야 하므로, 클로저는 interceptor를 weak 상자(`WeakInterceptor`)로 들고 나중에 채웁니다.
+- `APIError.from`이 Alamofire가 감싼 갱신 실패를 풉니다. 원래 요청의 401 응답을 들고 오므로 응답 검사보다 먼저 봅니다.
+
+| 감싼 형태 | 언제 | 결과 |
+| --- | --- | --- |
+| `requestRetryFailed(retryError: APIError)` | 401을 받고 갱신을 기다리던 요청 | 넘긴 `APIError` (`sessionExpired` / `networkError` 등) |
+| `requestAdaptationFailed(APIError)` | 갱신 중에 출발을 기다리던 요청 | 위와 같음 |
+| `requestRetryFailed(missingCredential)` | 토큰이 지워진 뒤에 401이 도착한 요청 | `.tokenNotFound` |
+
+**확인된 사실**
+
+- Alamofire는 `authenticator.refresh`를 잠금 밖(`queue.async`)에서 부릅니다. 그래서 `refresh` 안에서 `interceptor.credential = nil`을 해도 교착되지 않습니다.
+- 갱신에 실패해도 Alamofire는 `credential`을 바꾸지 않습니다. 직접 지우지 않으면 다음 요청이 옛 토큰으로 나갑니다.
+- `AuthenticationInterceptor`의 `RefreshWindow`(기본 30초에 5번)를 넘으면 `excessiveRefresh`로 끝납니다. 이 경우는 지금 `httpError(401)`이 됩니다.
+
 **통과 기준**
 
-- [ ] 오프라인에서 갱신에 실패해도 세션 만료 이벤트가 나가지 않음
-- [ ] 동시에 5개 요청이 실패해도 세션 만료 이벤트는 1번
+- [x] 오프라인에서 갱신에 실패해도 세션 만료 이벤트가 나가지 않음 (토큰 유지, `networkError`)
+- [x] 동시에 5개 요청이 실패해도 세션 만료 이벤트는 1번 (모두 `sessionExpired`)
+- [x] refresh token이 401/403으로 거절되면 토큰을 지우고 `sessionExpired`
+- [x] 세션 만료 뒤의 요청은 보내지 않고 `tokenNotFound`
 
 ---
 

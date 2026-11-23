@@ -37,11 +37,30 @@ extension APIError {
 
     /// 토큰이 없으면 `AuthenticationInterceptor`가 요청을 보내지 않고
     /// `AFError.requestAdaptationFailed(AuthenticationError.missingCredential)`로 끝낸다.
+    /// 세션 만료로 토큰이 지워진 뒤 401이 도착하면 `requestRetryFailed(missingCredential)`로 온다.
     private static func isMissingCredential(_ error: Error) -> Bool {
-        guard case .requestAdaptationFailed(let underlying)? = error.asAFError else {
+        switch error.asAFError {
+        case .requestAdaptationFailed(let underlying)?:
+            return (underlying as? AuthenticationError) == .missingCredential
+        case .requestRetryFailed(let retryError, _)?:
+            return (retryError as? AuthenticationError) == .missingCredential
+        default:
             return false
         }
-        return (underlying as? AuthenticationError) == .missingCredential
+    }
+
+    /// 갱신이 실패하면 Alamofire가 `TokenAuthenticator`가 넘긴 에러를 감싸서 돌려준다.
+    /// - 401을 받고 재시도를 기다리던 요청: `requestRetryFailed(retryError:)`
+    /// - 갱신 중에 출발을 기다리던 요청: `requestAdaptationFailed`
+    private static func refreshFailure(_ error: Error) -> APIError? {
+        switch error.asAFError {
+        case .requestRetryFailed(let retryError, _)?:
+            return retryError as? APIError
+        case .requestAdaptationFailed(let underlying)?:
+            return underlying as? APIError
+        default:
+            return nil
+        }
     }
 
     public static func from(_ error: MoyaError) -> APIError {
@@ -61,6 +80,15 @@ extension APIError {
                 message: serverMessage
             )
         case .underlying(let error, let response):
+            // 갱신 실패는 원래 요청의 401 응답을 들고 오므로 응답 검사보다 먼저 본다.
+            if let refreshError = refreshFailure(error) {
+                return refreshError
+            }
+
+            if isMissingCredential(error) {
+                return .tokenNotFound
+            }
+
             // 응답이 있다 = 서버까지 갔다 왔다. 본문이 JSON이 아니어도(HTML 에러 페이지, 파일 등) httpError.
             // Moya는 validationType 실패를 .underlying(.statusCode, response)로 감싸서 여기로 온다.
             if let response {
@@ -74,10 +102,6 @@ extension APIError {
                 return .cancelled
             }
 
-            if isMissingCredential(error) {
-                return .tokenNotFound
-            }
-            
             return .networkError(error.localizedDescription)
         }
     }

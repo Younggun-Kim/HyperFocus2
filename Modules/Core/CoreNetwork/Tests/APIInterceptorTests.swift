@@ -185,38 +185,147 @@ struct APIInterceptorTests {
             #expect(requests.value.map { $0.value(forHTTPHeaderField: "Authorization") } == ["Bearer old-access", "Bearer new-access"])
         }
 
-        /// 갱신 실패를 세션 만료와 구분하는 일은 6단계에서 한다.
-        @Test func 갱신에_실패하면_재시도하지_않고_401을_던진다() async throws {
-            let requests = Locked<[URLRequest]>([])
-            let host = MockURLProtocol.register { request in
-                requests.withLock { $0.append(request) }
-                return (.mock(for: request, statusCode: 401), Data())
-            }
-            defer { MockURLProtocol.unregister(host) }
-            let service = APIService(
-                tokenManager: TokenManager(storage: InMemoryTokenStorage(.old)) { _ in
-                    throw URLError(.notConnectedToInternet)
-                },
-                configuration: .mock
-            )
-
-            let error = await #expect(throws: APIError.self) {
-                try await service.request(StubTarget(host: host), responseType: User.self)
-            }
-
-            guard case .httpError(let statusCode, _) = error else {
-                Issue.record("httpError가 아님: \(String(describing: error))")
-                return
-            }
-            #expect(statusCode == 401)
-            #expect(requests.value.count == 1)
-        }
-
         private static func acceptsOnlyNewToken(recordingTo requests: Locked<[URLRequest]>) -> MockURLProtocol.Handler {
             { request in
                 requests.withLock { $0.append(request) }
                 let statusCode = request.value(forHTTPHeaderField: "Authorization") == "Bearer new-access" ? 200 : 401
                 return (.mock(for: request, statusCode: statusCode), userJSON)
+            }
+        }
+    }
+
+    /// 6단계: 갱신 실패를 세션 만료와 일시적 실패로 나누고, 세션 만료는 한 번만 알린다.
+    @Suite struct 갱신_실패_테스트 {
+        @Test(arguments: [401, 403])
+        func refresh_token이_거절되면_세션_만료를_알리고_sessionExpired를_던진다(statusCode: Int) async throws {
+            let requests = Locked<[URLRequest]>([])
+            let host = MockURLProtocol.register(Self.alwaysUnauthorized(recordingTo: requests))
+            defer { MockURLProtocol.unregister(host) }
+            let expiredCount = Locked(0)
+            let storage = InMemoryTokenStorage(.old)
+            let tokenManager = TokenManager(
+                storage: storage,
+                refresh: { _ in throw APIError.httpError(statusCode: statusCode, message: nil) },
+                onSessionExpired: { expiredCount.withLock { $0 += 1 } }
+            )
+            let service = APIService(tokenManager: tokenManager, configuration: .mock)
+
+            let error = await #expect(throws: APIError.self) {
+                try await service.request(StubTarget(host: host), responseType: User.self)
+            }
+
+            guard case .sessionExpired = error else {
+                Issue.record("sessionExpired가 아님: \(String(describing: error))")
+                return
+            }
+            #expect(expiredCount.value == 1)
+            #expect(tokenManager.token == nil)
+            #expect(storage.load() == nil)
+            #expect(requests.value.count == 1)
+        }
+
+        @Test func 오프라인에서_갱신에_실패하면_세션을_유지하고_networkError를_던진다() async throws {
+            let requests = Locked<[URLRequest]>([])
+            let host = MockURLProtocol.register(Self.alwaysUnauthorized(recordingTo: requests))
+            defer { MockURLProtocol.unregister(host) }
+            let expiredCount = Locked(0)
+            let storage = InMemoryTokenStorage(.old)
+            let tokenManager = TokenManager(
+                storage: storage,
+                refresh: { _ in throw APIError.networkError("오프라인") },
+                onSessionExpired: { expiredCount.withLock { $0 += 1 } }
+            )
+            let service = APIService(tokenManager: tokenManager, configuration: .mock)
+
+            let error = await #expect(throws: APIError.self) {
+                try await service.request(StubTarget(host: host), responseType: User.self)
+            }
+
+            guard case .networkError = error else {
+                Issue.record("networkError가 아님: \(String(describing: error))")
+                return
+            }
+            #expect(expiredCount.value == 0)
+            #expect(tokenManager.token == .old)
+            #expect(storage.load() == .old)
+            #expect(requests.value.count == 1)
+        }
+
+        @Test func 동시에_5개_요청이_실패해도_세션_만료는_한_번만_알린다() async throws {
+            let host = MockURLProtocol.register(Self.alwaysUnauthorized(recordingTo: Locked([])))
+            defer { MockURLProtocol.unregister(host) }
+            let expiredCount = Locked(0)
+            let refreshCount = Locked(0)
+            let service = APIService(
+                tokenManager: TokenManager(
+                    storage: InMemoryTokenStorage(.old),
+                    refresh: { _ in
+                        refreshCount.withLock { $0 += 1 }
+                        // 5개 요청이 모두 401을 받고 갱신을 기다리도록 잠시 붙잡는다.
+                        try await _Concurrency.Task.sleep(for: .milliseconds(200))
+                        throw APIError.httpError(statusCode: 401, message: nil)
+                    },
+                    onSessionExpired: { expiredCount.withLock { $0 += 1 } }
+                ),
+                configuration: .mock
+            )
+
+            let errors = await withTaskGroup(of: (any Error)?.self) { group in
+                for _ in 0..<5 {
+                    group.addTask {
+                        do {
+                            _ = try await service.request(StubTarget(host: host), responseType: User.self)
+                            return nil
+                        } catch {
+                            return error
+                        }
+                    }
+                }
+                return await group.reduce(into: [(any Error)?]()) { $0.append($1) }
+            }
+
+            #expect(refreshCount.value == 1)
+            #expect(expiredCount.value == 1)
+            #expect(errors.count == 5)
+            for error in errors {
+                guard case .sessionExpired? = error as? APIError else {
+                    Issue.record("sessionExpired가 아님: \(String(describing: error))")
+                    continue
+                }
+            }
+        }
+
+        @Test func 세션_만료_후의_요청은_보내지_않고_tokenNotFound를_던진다() async throws {
+            let requests = Locked<[URLRequest]>([])
+            let host = MockURLProtocol.register(Self.alwaysUnauthorized(recordingTo: requests))
+            defer { MockURLProtocol.unregister(host) }
+            let expiredCount = Locked(0)
+            let service = APIService(
+                tokenManager: TokenManager(
+                    storage: InMemoryTokenStorage(.old),
+                    refresh: { _ in throw APIError.httpError(statusCode: 401, message: nil) },
+                    onSessionExpired: { expiredCount.withLock { $0 += 1 } }
+                ),
+                configuration: .mock
+            )
+            _ = try? await service.request(StubTarget(host: host), responseType: User.self)
+
+            let error = await #expect(throws: APIError.self) {
+                try await service.request(StubTarget(host: host), responseType: User.self)
+            }
+
+            guard case .tokenNotFound = error else {
+                Issue.record("tokenNotFound가 아님: \(String(describing: error))")
+                return
+            }
+            #expect(expiredCount.value == 1)
+            #expect(requests.value.count == 1)
+        }
+
+        private static func alwaysUnauthorized(recordingTo requests: Locked<[URLRequest]>) -> MockURLProtocol.Handler {
+            { request in
+                requests.withLock { $0.append(request) }
+                return (.mock(for: request, statusCode: 401), Data())
             }
         }
     }
