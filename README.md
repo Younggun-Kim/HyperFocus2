@@ -2,7 +2,7 @@
 
 HyperFocus 앱을 [Tuist](https://tuist.dev) 기반 프로젝트로 다시 구성하는 리팩터링 저장소입니다.
 
-> 🚧 3주차까지 마쳤고, 4주차(CI)를 앞두고 있습니다.
+> 🚧 3주차까지 마쳤고, 4주차(CI)를 진행 중입니다. 워크플로는 작성했고 GitHub에서 첫 실행을 확인해야 합니다.
 > - 1주차: 앱·유닛 테스트·UI 테스트 타깃과 Debug/Release 설정(앱 이름, App Group) 분리
 > - 2주차: [아키텍처](#아키텍처) 확정, Feature 2개(FocusTimer, SessionHistory)와 Data·Core/Utils 모듈 분리, 암묵적 의존 검사 통과
 > - 3주차: 바이너리 캐시와 선택적 테스트 측정([결과](#측정-결과)), [새 Feature를 만드는 scaffold 템플릿](#새-feature-추가하기) 추가
@@ -65,6 +65,21 @@ tuist generate
 | `tuist scaffold Feature --name <이름>` | 새 Feature 모듈 파일 생성 |
 
 > 배포용 아카이브는 `tuist generate --no-binary-cache`로 소스 기반 프로젝트를 생성한 뒤 만듭니다.
+
+## CI
+
+`main` 푸시와 PR마다 GitHub Actions(`.github/workflows/ci.yml`)가 아래 순서로 실행합니다. 로컬에서도 같은 명령으로 재현할 수 있습니다.
+
+```bash
+tuist install
+tuist generate --no-open
+tuist inspect dependencies --only implicit
+tuist test --device "iPhone 17 Pro" --no-selective-testing
+```
+
+- Tuist 버전은 `mise.toml`, Xcode 버전은 워크플로의 `XCODE_VERSION`으로 로컬과 맞춥니다. Xcode를 올릴 때는 둘 다 바꿉니다.
+- CI에는 이전 실행 기록이 없어 선택적 테스트가 이득이 없으므로 끄고 전부 실행합니다.
+- `Tuist/.build`(SPM 체크아웃)는 `Package.resolved` 해시로 캐시합니다.
 
 ## 빌드 configuration
 
@@ -225,7 +240,7 @@ swift-dependencies는 `liveValue`를 컴파일 타임에 호출하지 않고, �
 - [x] 모듈 분리 및 암묵적 의존 검사(`tuist inspect dependencies --only implicit`) 적용
 - [x] 바이너리 캐시·선택적 테스트 적용 및 시간 측정
 - [x] 새 Feature를 만드는 scaffold 템플릿
-- [ ] CI 파이프라인 구성
+- [ ] CI 파이프라인 구성 (`.github/workflows/ci.yml` 작성, GitHub에서 통과 확인 전)
 
 ### 측정 결과
 

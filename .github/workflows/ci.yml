@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# 같은 브랜치에 새 커밋이 오면 이전 실행은 취소한다.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 로컬 개발 환경과 맞춘다 (README 요구 사항 표).
+  XCODE_VERSION: "27.2"
+  TEST_DEVICE: "iPhone 17 Pro"
+
+jobs:
+  test:
+    name: generate → test
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode 선택
+        run: |
+          sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+          xcodebuild -version
+
+      # mise.toml에 고정된 Tuist 버전을 설치한다.
+      - uses: jdx/mise-action@v2
+
+      - name: Tuist 버전 확인
+        run: tuist version
+
+      # 외부 의존성(SPM) 체크아웃을 Package.resolved 기준으로 재사용한다.
+      - uses: actions/cache@v4
+        with:
+          path: Tuist/.build
+          key: tuist-deps-${{ runner.os }}-${{ hashFiles('Tuist/Package.resolved') }}
+          restore-keys: tuist-deps-${{ runner.os }}-
+
+      - name: 외부 의존성 설치
+        run: tuist install
+
+      - name: 프로젝트 생성
+        run: tuist generate --no-open
+
+      - name: 암묵적 의존 검사
+        run: tuist inspect dependencies --only implicit
+
+      # CI에는 이전 실행 기록이 없으므로 선택적 테스트를 끄고 전부 실행한다.
+      - name: 테스트
+        run: tuist test --device "$TEST_DEVICE" --no-selective-testing
