@@ -18,7 +18,7 @@ public struct AuthToken: AuthenticationCredential, Sendable, Equatable {
         self.tokenType = tokenType
     }
 
-    // TODO: 7단계 선제 갱신
+    /// 선제 갱신은 하지 않는다. 갱신은 401을 받았을 때만 한다.
     public var requiresRefresh: Bool { false }
 
     var authorizationHeader: String { "\(tokenType) \(accessToken)" }

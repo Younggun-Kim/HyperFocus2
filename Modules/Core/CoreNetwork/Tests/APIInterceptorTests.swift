@@ -322,6 +322,41 @@ struct APIInterceptorTests {
             #expect(requests.value.count == 1)
         }
 
+        /// 갱신은 성공하는데 서버가 새 토큰도 계속 거절하는 상황.
+        /// Alamofire의 `RefreshWindow`(30초에 5번)를 넘으면 `excessiveRefresh`로 멈춘다.
+        /// 이 경로는 `TokenAuthenticator.refresh`를 거치지 않으므로 세션 만료로 보지 않고 `httpError(401)`로 둔다.
+        @Test func 갱신해도_계속_401이면_5번_갱신_후_httpError를_던진다() async throws {
+            let requests = Locked<[URLRequest]>([])
+            let host = MockURLProtocol.register(Self.alwaysUnauthorized(recordingTo: requests))
+            defer { MockURLProtocol.unregister(host) }
+            let refreshCount = Locked(0)
+            let expiredCount = Locked(0)
+            let service = APIService(
+                tokenManager: TokenManager(
+                    storage: InMemoryTokenStorage(.old),
+                    refresh: { _ in
+                        refreshCount.withLock { $0 += 1 }
+                        return .new
+                    },
+                    onSessionExpired: { expiredCount.withLock { $0 += 1 } }
+                ),
+                configuration: .mock
+            )
+
+            let error = await #expect(throws: APIError.self) {
+                try await service.request(StubTarget(host: host), responseType: User.self)
+            }
+
+            guard case .httpError(let statusCode, _) = error else {
+                Issue.record("httpError가 아님: \(String(describing: error))")
+                return
+            }
+            #expect(statusCode == 401)
+            #expect(refreshCount.value == 5)
+            #expect(expiredCount.value == 0)
+            #expect(requests.value.count == 6)
+        }
+
         private static func alwaysUnauthorized(recordingTo requests: Locked<[URLRequest]>) -> MockURLProtocol.Handler {
             { request in
                 requests.withLock { $0.append(request) }

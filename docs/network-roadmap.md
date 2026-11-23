@@ -15,7 +15,7 @@
 | 4 | 토큰 주입 (`requiresAuth`, `TokenManager`) | ✅ 완료 |
 | 5 | `AuthenticationInterceptor` (갱신·재시도·경합) | ✅ 완료 |
 | 6 | 갱신 실패 구분 + 세션 만료 1회 발행 | ✅ 완료 |
-| 7 | 선제 갱신 (`expiresIn`) | ⬜ |
+| 7 | 선제 갱신 (`expiresIn`) | ➖ 하지 않음 |
 | 별도 | Keychain 이전, 로깅, 반환 타입 `D` (설계 확정) | ⬜ |
 
 ---
@@ -304,7 +304,8 @@ send(target) -> Data      ← 이후 단계의 공통 처리가 모두 여기에
 
 - Alamofire는 `authenticator.refresh`를 잠금 밖(`queue.async`)에서 부릅니다. 그래서 `refresh` 안에서 `interceptor.credential = nil`을 해도 교착되지 않습니다.
 - 갱신에 실패해도 Alamofire는 `credential`을 바꾸지 않습니다. 직접 지우지 않으면 다음 요청이 옛 토큰으로 나갑니다.
-- `AuthenticationInterceptor`의 `RefreshWindow`(기본 30초에 5번)를 넘으면 `excessiveRefresh`로 끝납니다. 이 경우는 지금 `httpError(401)`이 됩니다.
+- `AuthenticationInterceptor`의 `RefreshWindow`(기본 30초에 5번)를 넘으면 `excessiveRefresh`로 끝납니다. 갱신은 성공하는데 서버가 새 토큰도 거절하는 상황입니다.
+  - **세션 만료로 보지 않고 `httpError(401)`로 둡니다.** 이 실패는 `TokenAuthenticator.refresh`를 거치지 않고 Alamofire가 직접 내므로, 세션 만료로 바꾸려면 `APIError.from`에서 요청마다 처리해야 하고 그러면 알림이 요청 수만큼 나갑니다(①번 문제 재발). 토큰은 유효하게 갱신되고 있으니 로그아웃시킬 근거도 약합니다.
 
 **통과 기준**
 
@@ -312,10 +313,13 @@ send(target) -> Data      ← 이후 단계의 공통 처리가 모두 여기에
 - [x] 동시에 5개 요청이 실패해도 세션 만료 이벤트는 1번 (모두 `sessionExpired`)
 - [x] refresh token이 401/403으로 거절되면 토큰을 지우고 `sessionExpired`
 - [x] 세션 만료 뒤의 요청은 보내지 않고 `tokenNotFound`
+- [x] 갱신해도 계속 401이면 5번 갱신 후 `httpError(401)`, 세션 만료 알림 없음
 
 ---
 
-## 7단계: 선제 갱신
+## 7단계: 선제 갱신 ➖ 하지 않음
+
+> 하지 않기로 했습니다 (2026-11-23). 갱신은 401을 받았을 때만 하고, `AuthToken.requiresRefresh`는 항상 `false`입니다. 아래는 검토했던 내용입니다.
 
 **목표**: 401을 받기 전에, 만료가 가까운 토큰이면 미리 갱신합니다.
 
@@ -334,6 +338,7 @@ send(target) -> Data      ← 이후 단계의 공통 처리가 모두 여기에
 | 항목 | 내용 |
 | --- | --- |
 | Keychain 이전 | refresh token까지 UserDefaults에 평문 저장 중. Keychain으로 옮김 |
+| 세션 만료 연결 | Auth(로그인·자동 로그인)를 옮길 때 함께 함. Data가 `TokenManager`를 만들 때 `onSessionExpired`를 Domain의 세션 만료 알림(기존 `SessionExpiredNotifier`)으로 넘기고, 앱이 구독해서 `autoLogin()`. 갱신 API(`POST /api/v1/auth/refresh`)는 `requiresAuth == false` target으로 |
 | 로깅 | `NetworkLoggingPlugin`은 Plugin 역할(관찰)에 맞으므로 그대로 Moya Plugin으로 둠 |
 | WebSocket | `StompClient`도 access token을 쓰지만 갱신 흐름에 포함되지 않음. 소켓 연결 중 만료되면 어떻게 되는지 확인 필요 |
 | 모듈 경계 | `APIError+Reason.swift`의 `deferralReason`은 집중 세션 애널리틱스 전용. Core에서 Feature/Data 쪽으로 옮길지 검토 |
