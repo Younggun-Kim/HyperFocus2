@@ -60,8 +60,8 @@ tuist generate
 | `tuist inspect dependencies --only implicit` | 선언하지 않은 `import`(암묵적 의존) 검사 |
 | `tuist cache` | 바이너리 캐시 데우기 |
 | `xcodebuild build -workspace HyperFocus.xcworkspace -scheme HyperFocus ...` | 빌드. `tuist build`는 4.216.2에서 빌드 기록 조회 명령으로 바뀌어 빌드하지 않습니다 |
-| `tuist test <스킴> --device "iPhone 17 Pro"` | 테스트. 기본으로 선택적 테스트가 켜져 있어 해시가 바뀐 테스트 타깃만 실행합니다 |
-| `tuist run <Feature> --device "iPhone 17 Pro"` | Feature의 Example 앱 실행 (`<Feature>` 스킴의 Run 대상이 Example 앱) |
+| `tuist test <스킴> --device "iPhone 18 Pro"` | 테스트. 기본으로 선택적 테스트가 켜져 있어 해시가 바뀐 테스트 타깃만 실행합니다 |
+| `tuist run <Feature> --device "iPhone 18 Pro"` | Feature의 Example 앱 실행 (`<Feature>` 스킴의 Run 대상이 Example 앱) |
 | `tuist scaffold Feature --name <이름>` | 새 Feature 모듈 파일 생성 |
 
 > 배포용 아카이브는 `tuist generate --no-binary-cache`로 소스 기반 프로젝트를 생성한 뒤 만듭니다.
@@ -74,7 +74,7 @@ tuist generate
 tuist install
 tuist generate --no-open
 tuist inspect dependencies --only implicit
-tuist test --device "iPhone 17 Pro" --no-selective-testing
+tuist test --device "iPhone 18 Pro" --no-selective-testing
 ```
 
 - Tuist 버전은 `mise.toml`, Xcode 버전은 워크플로의 `XCODE_VERSION`으로 로컬과 맞춥니다. Xcode를 올릴 때는 둘 다 바꿉니다.
@@ -171,7 +171,7 @@ tuist scaffold Feature --name Settings
 ```bash
 # 3. 프로젝트 생성 후 테스트
 tuist generate
-tuist test Settings --device "iPhone 17 Pro"
+tuist test Settings --device "iPhone 18 Pro"
 ```
 
 - scaffold는 파일만 만듭니다. 그래프 연결은 의존성을 리뷰에서 확인하도록 일부러 수작업으로 남겼습니다.

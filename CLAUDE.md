@@ -80,8 +80,8 @@ App ──→ Feature ──→ Domain ←── Data ┄┄→ CoreNetwork ─�
 tuist install                                   # 외부 의존성 (Tuist/Package.swift)
 tuist generate --no-open                        # 프로젝트 생성
 tuist inspect dependencies --only implicit      # 암묵적 의존 검사
-tuist test <스킴> --device "iPhone 17 Pro"       # 테스트 (기본: 선택적 테스트)
-tuist test --device "iPhone 17 Pro" --no-selective-testing   # CI와 같은 전체 테스트
+tuist test <스킴> --device "iPhone 18 Pro"       # 테스트 (기본: 선택적 테스트)
+tuist test --device "iPhone 18 Pro" --no-selective-testing   # CI와 같은 전체 테스트
 ```
 
 - 배포용 아카이브는 `tuist generate --no-binary-cache`로 소스 기반 프로젝트를 생성한 뒤 만든다.

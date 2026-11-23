@@ -14,12 +14,12 @@ concurrency:
 env:
   # 로컬 개발 환경과 맞춘다 (README 요구 사항 표).
   XCODE_VERSION: "27.2"
-  TEST_DEVICE: "iPhone 17 Pro"
+  TEST_DEVICE: "iPhone 18 Pro"  # xcode-27 이미지의 iOS 27 런타임에 있는 기기
 
 jobs:
   test:
     name: generate → test
-    runs-on: macos-26
+    runs-on: xcode-27  # Xcode 27.x는 이 라벨에만 있다 (public preview)
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
