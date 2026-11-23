@@ -2,84 +2,29 @@
 
 집중할 시간을 타이머로 정해 몰입하고, 끝낸 집중 세션을 기록으로 돌아보는 iOS 집중 타이머 앱
 
-> 이 저장소는 HyperFocus를 Tuist 기반 모듈 구조로 다시 만드는 리팩터링 과정을 담고 있습니다. 무엇을 바꿨는지는 [Before → After](#before--after)에 정리했습니다.
->
-> **현재 상태**: 모듈 구조, 빌드 설정, CI, 네트워크 계층(CoreNetwork)을 만들었습니다. 타이머 화면은 동작하지만, 집중 기록 저장과 기존 앱의 나머지 기능은 아직 옮기는 중입니다. 기록 탭의 데이터는 구조를 검증하기 위한 예시(`Sample`)입니다.
-
 [![CI](https://github.com/Younggun-Kim/HyperFocus2/actions/workflows/ci.yml/badge.svg)](https://github.com/Younggun-Kim/HyperFocus2/actions/workflows/ci.yml)
 ![iOS](https://img.shields.io/badge/iOS-18.0%2B-blue)
 ![Tuist](https://img.shields.io/badge/Tuist-4.216.2-purple)
 
 ## 개요
 
+HyperFocus는 ADHD가 있는 사람들을 위한 집중 타이머 앱으로, App Store에서 운영 중입니다. SwiftUI와 TCA로 빠르게 출시했지만, 기능이 늘면서 코드 스타일이 제각각이 되고 Repository가 Entity 대신 서버 응답 모델(DTO)을 반환하는 등 레이어 경계가 흐려졌습니다. 기존 앱은 레이어를 폴더로만 나눠 한 앱 타깃 안에 두었기 때문에, 이런 규칙을 리뷰로만 지킬 수 있었습니다.
+
+이 저장소는 같은 기능을 처음부터 다시 세우는 프로젝트입니다. **레이어를 Tuist 모듈로 나눠 의존 규칙을 빌드가 검사하게 하고, 빌드·테스트·검증을 CI로 자동화**했습니다.
+
 | 항목 | 내용 |
 | --- | --- |
 | 기간 | 2026.11.13 ~ 진행 중 |
-| 인원 | 1명 |
-| 담당 | 모듈·아키텍처 설계, 빌드 설정, 테스트, CI 구성 전체 |
+| 인원 | 1인 개발 (설계, 빌드 설정, 테스트, CI) |
 | 플랫폼 | iOS 18.0 이상 |
+| 기존 앱 | Swift 약 26,500줄 (앱·위젯·테스트 타깃) |
+| 진행 상태 | 모듈 구조, 빌드 설정, CI, 네트워크 계층 완료. 타이머 화면 동작. 집중 기록 저장과 나머지 기능은 옮기는 중(기록 탭 데이터는 구조 검증용 예시 `Sample`) |
 
-<!-- TODO(직접 작성): 2~3문장. HyperFocus가 어떤 앱이고, 왜 다시 만들기로 했는지. -->
+**주요 성과**
 
-## Before → After
-
-기존 HyperFocus는 App Store에 출시된 앱입니다(Swift 약 26,500줄, 앱·위젯·테스트 타깃). Domain / Data / Features 레이어를 폴더로 나눴지만 모두 한 앱 타깃 안에 있어서, 레이어 규칙을 리뷰로만 지켜야 했습니다. 이 저장소에서는 **레이어를 Tuist 모듈로 나눠 의존 규칙을 빌드가 검사하게 하고, 빌드·검증 과정을 자동화**했습니다. 구조를 먼저 다시 세우고, 기존 기능을 옮기는 중입니다.
-
-| 항목 | Before | After |
-| --- | --- | --- |
-| 프로젝트 관리 | `.xcodeproj` 직접 관리. `project.pbxproj`가 151개 커밋에서 변경됨 | Swift 매니페스트로 선언하고 `.xcodeproj`는 생성물로 취급(커밋하지 않음) |
-| 모듈 경계 | 한 앱 타깃 안의 폴더. 레이어 규칙을 리뷰로만 지킴 | Tuist 모듈로 분리하고 의존 방향을 타깃 그래프로 선언. 선언하지 않은 `import`는 `tuist inspect`로 검사 |
-| 기능 단위 개발 | 화면 하나를 확인하려면 전체 앱을 빌드·실행 | Feature마다 Example 앱과 테스트 타깃 |
-| 새 기능 추가 | 폴더와 파일을 수작업으로 생성 | `tuist scaffold Feature`로 Sources·Example·Tests 생성 |
-| PR 검증 | 빌드 설정만 검사 | install → generate → 암묵적 의존 검사 → 전체 테스트 |
-
-클린 빌드 시간은 리팩터링한 구조에서 외부 의존성 바이너리 캐시를 켜기 전과 후를 비교했습니다. 55.4초에서 10.9초로 줄었습니다(-80%, [측정 결과](#4-빌드-시간-측정과-feature-템플릿)). 기존 앱과 비교한 값은 아닙니다.
-
-## 핵심 작업
-
-### 1. 매니페스트로 프로젝트 선언, 환경별 설정 분리
-
-- `.xcodeproj` 대신 `Project.swift`로 타깃과 설정을 선언해, 프로젝트 변경을 코드 리뷰에서 읽을 수 있게 했습니다.
-- 앱 이름과 App Group을 `xcconfig → 빌드 설정 → Info.plist·entitlements`로 흘려보내 Debug/Release 빌드가 각자 자기 환경 값만 갖게 했습니다.
-- [1주차 글](docs/blog/week1-manifest.md)
-
-### 2. 레이어를 모듈로 분리하고 의존을 검사
-
-- App, Feature, Domain, Data, Core(Util, CoreNetwork)를 정적 프레임워크 모듈로 나누고 의존 방향을 타깃 그래프로 선언했습니다.
-- `Target.feature(name:dependencies:)` 헬퍼 하나가 Feature 프레임워크, Example 앱, 테스트 타깃을 함께 만듭니다. 화면 하나를 전체 앱 없이 띄우고 테스트할 수 있습니다.
-- 선언하지 않은 `import`는 `tuist inspect dependencies --only implicit`으로 잡습니다.
-- [2주차 글](docs/blog/week2-modularization.md)
-
-### 3. 클린 아키텍처와 `DataModule.bootstrap()`
-
-- Domain이 Repository 포트를 선언하고 Data가 구현합니다. Data는 App만 링크하므로 Feature는 구현을 알 수 없습니다.
-- 정적 링크에서 아무도 참조하지 않는 Data 구현이 빠지는 문제를, 모든 `liveValue`를 직접 참조해 등록하는 `bootstrap()`으로 해결했습니다([트러블슈팅](#트러블슈팅)).
-- 한 번 TMA + Data 구조로 물러났다가 원인을 확인한 뒤 다시 도입했습니다.
-
-### 4. 빌드 시간 측정과 Feature 템플릿
-
-- 바이너리 캐시와 선택적 테스트의 효과를 같은 조건에서 3회씩 쟀습니다. 클린 빌드는 -80%였고, 선택적 테스트는 효과가 거의 없었습니다. 효과가 없었던 원인도 분석했습니다(아래 표).
-- `tuist scaffold Feature --name <이름>`으로 Feature의 Sources, Example, Tests 파일을 만듭니다. 그래프 연결은 리뷰에서 확인하도록 일부러 수작업으로 남겼습니다.
-- [3주차 글](docs/blog/week3-measure.md)
-
-MacBook Pro(M3 Pro, 18GB), Xcode 27.2, Tuist 4.216.2에서 항목마다 3회 잰 중앙값입니다.
-
-| 항목 | 적용 전 | 적용 후 |
-| --- | --- | --- |
-| 클린 빌드 | 55.4초 (캐시 없음) | 10.9초 (외부 의존성 바이너리 캐시, -80%) |
-| 모듈 1개 변경 후 테스트 | 48.1초 (선택적 테스트 끔) | 45.0초 (켬, 측정 오차 범위 안) |
-
-### 5. 네트워크 계층 재구성 (CoreNetwork)
-
-- 기존 앱의 `APIService`는 400줄 가까이 되지만 기능은 6개뿐이고 대부분 같은 코드의 반복이었습니다. 가장 단순한 `request`에서 시작해 기능을 한 단계씩 얹어 0~6단계로 다시 만들었습니다. 단계마다 테스트로 확인하고 커밋했습니다.
-- 토큰 갱신, 재시도, 동시 요청 경합을 서비스 코드에서 Alamofire `AuthenticationInterceptor`로 옮겼습니다. 갱신 실패 원인을 구분하고, 세션 만료는 한 번만 알립니다.
-- `URLProtocol` mock으로 실제 서버 없이 테스트 26개를 돌립니다.
-- 아직 Data 모듈에는 연결하지 않았습니다. [APIService 재구성 로드맵](docs/network-roadmap.md)
-
-### 6. CI
-
-- PR과 `main` 푸시마다 GitHub Actions가 `install → generate → 암묵적 의존 검사 → 전체 테스트`를 실행합니다.
-- Tuist 버전은 `mise.toml`, Xcode 버전은 워크플로의 `XCODE_VERSION`으로 로컬과 맞춥니다.
+- 정적 링크에서 Data 구현이 빠지는 원인을 찾아, 한 번 포기했던 클린 아키텍처를 다시 도입했습니다. → [트러블슈팅 1](#1-정적-링크에서-data-구현이-빠지는-문제-클린-아키텍처를-포기했다가-다시-도입하기)
+- 외부 의존성 바이너리 캐시로 클린 빌드를 55.4초에서 10.9초로 줄였습니다(-80%). → [빌드 시간 측정](#4-빌드-시간을-측정하고-원인까지-분석)
+- 토큰 갱신 경합을 `AuthenticationInterceptor`로 해결하고, 테스트 26개로 고정했습니다. → [트러블슈팅 3](#3-토큰-갱신-경합으로-정상-세션이-만료되는-문제)
 
 ## 아키텍처
 
@@ -143,6 +88,72 @@ flowchart LR
 | 테스트 | Swift Testing, XCTest | 유닛 테스트는 파라미터화와 `async` 테스트가 자연스러운 Swift Testing을 씁니다. UI 테스트는 Swift Testing이 지원하지 않아 XCTest를 씁니다. |
 | 프로젝트 | Tuist, mise | Tuist로 프로젝트를 코드로 선언하고 모듈 헬퍼, 바이너리 캐시, 선택적 테스트를 씁니다. mise는 Tuist 버전을 프로젝트 단위로 고정해 로컬과 CI가 같은 버전을 쓰게 합니다. |
 | CI | GitHub Actions | 저장소와 같은 곳에서 PR마다 검사를 돌립니다. 기존 앱도 PR 검증에 GitHub Actions를 써서 운영 방식이 같습니다. |
+
+## 실행 방법
+
+```bash
+git clone https://github.com/Younggun-Kim/HyperFocus2.git
+cd HyperFocus2
+mise install       # mise.toml에 고정된 Tuist 4.216.2 설치
+tuist install      # 외부 의존성
+tuist generate     # Xcode 프로젝트 생성
+```
+
+macOS와 Xcode 27.2가 필요합니다. 명령어, 빌드 configuration, 프로젝트 구조, 새 Feature 추가 방법은 [개발 가이드](docs/development.md)에 있습니다.
+
+## 주요 작업
+
+| 항목 | 기존 앱 | 이 저장소 |
+| --- | --- | --- |
+| 프로젝트 관리 | `.xcodeproj` 직접 관리. `project.pbxproj`가 151개 커밋에서 변경됨 | Swift 매니페스트로 선언하고 `.xcodeproj`는 생성물로 취급(커밋하지 않음) |
+| 모듈 경계 | 한 앱 타깃 안의 폴더. 레이어 규칙을 리뷰로만 지킴 | Tuist 모듈로 분리하고 의존 방향을 타깃 그래프로 선언. 선언하지 않은 `import`는 `tuist inspect`로 검사 |
+| 기능 단위 개발 | 화면 하나를 확인하려면 전체 앱을 빌드·실행 | Feature마다 Example 앱과 테스트 타깃 |
+| 새 기능 추가 | 폴더와 파일을 수작업으로 생성 | `tuist scaffold Feature`로 Sources·Example·Tests 생성 |
+| PR 검증 | 빌드 설정만 검사 | install → generate → 암묵적 의존 검사 → 전체 테스트 |
+
+### 1. 프로젝트 설정을 코드로 리뷰할 수 있게
+
+- `.xcodeproj` 대신 `Project.swift`로 타깃과 설정을 선언했습니다. 프로젝트 변경이 읽을 수 있는 diff로 남습니다.
+- 앱 이름과 App Group을 `xcconfig → 빌드 설정 → Info.plist·entitlements`로 흘려보내, Debug/Release 빌드가 각자 자기 환경 값만 갖게 했습니다.
+- 정리한 글: [1주차: 매니페스트로 iOS 프로젝트 만들기](docs/blog/week1-manifest.md)
+
+### 2. 레이어 규칙을 빌드가 검사하게
+
+- App, Feature, Domain, Data, Core(Util, CoreNetwork)를 정적 프레임워크 모듈로 나누고 의존 방향을 타깃 그래프로 선언했습니다. 허용하지 않은 방향의 의존은 빌드에서 실패합니다.
+- 선언하지 않은 `import`는 `tuist inspect dependencies --only implicit`으로 CI에서 잡습니다.
+- `Target.feature(name:dependencies:)` 헬퍼 하나가 Feature 프레임워크, Example 앱, 테스트 타깃을 함께 만들어, 화면 하나를 전체 앱 없이 띄우고 테스트할 수 있습니다.
+- 정리한 글: [2주차: 모듈 설계부터 Feature 분리와 의존성 검증까지](docs/blog/week2-modularization.md)
+
+### 3. 클린 아키텍처와 `DataModule.bootstrap()`
+
+- Domain이 Repository 포트를 선언하고 Data가 구현합니다. Data는 App만 링크하므로 Feature는 구현을 알 수 없고, Example 앱과 테스트는 mock만으로 돌아갑니다.
+- 정적 링크에서 참조되지 않는 Data 구현이 빠지는 문제를 원인부터 확인하고, 모든 `liveValue`를 직접 참조해 등록하는 `bootstrap()`으로 해결했습니다([트러블슈팅 1](#1-정적-링크에서-data-구현이-빠지는-문제-클린-아키텍처를-포기했다가-다시-도입하기)).
+- 등록 누락은 컴파일러가 잡지 못하므로, 실제 앱에서 live 구현으로 불러오는지 확인하는 UI 테스트로 막았습니다.
+
+### 4. 빌드 시간을 측정하고 원인까지 분석
+
+- 바이너리 캐시와 선택적 테스트의 효과를 같은 조건에서 3회씩 쟀습니다. 클린 빌드는 -80% 줄었고, 선택적 테스트는 효과가 거의 없었습니다. 효과가 없었던 이유는 의존 그래프에서 찾았습니다([트러블슈팅 2](#2-선택적-테스트를-켰는데-테스트-시간이-줄지-않은-이유)).
+- `tuist scaffold Feature --name <이름>`으로 새 Feature의 Sources, Example, Tests를 만듭니다. 그래프 연결은 리뷰에서 확인하도록 일부러 수작업으로 남겼습니다.
+- 정리한 글: [3주차: 바이너리 캐시와 선택적 테스트를 숫자로 확인하기](docs/blog/week3-measure.md)
+
+MacBook Pro(M3 Pro, 18GB), Xcode 27.2, Tuist 4.216.2에서 항목마다 3회 잰 중앙값입니다. 모두 이 저장소의 구조에서 잰 값이며, 기존 앱과 비교한 값은 아닙니다.
+
+| 항목 | 적용 전 | 적용 후 |
+| --- | --- | --- |
+| 클린 빌드 | 55.4초 (캐시 없음) | 10.9초 (외부 의존성 바이너리 캐시, -80%) |
+| 모듈 1개 변경 후 테스트 | 48.1초 (선택적 테스트 끔) | 45.0초 (켬, 측정 오차 범위 안) |
+
+### 5. 네트워크 계층 재설계 (CoreNetwork)
+
+- 기존 `APIService`는 400줄 가까이 되지만 기능은 6개이고, 대부분 같은 코드의 반복이었습니다. 가장 단순한 `request`에서 시작해 기능을 한 단계씩 얹어 0~6단계로 다시 만들고, 단계마다 테스트로 확인했습니다.
+- 토큰 갱신, 재시도, 동시 요청 경합 처리를 서비스 코드에서 Alamofire `AuthenticationInterceptor`로 옮겼습니다. 갱신 실패 원인을 구분하고, 세션 만료는 한 번만 알립니다([트러블슈팅 3](#3-토큰-갱신-경합으로-정상-세션이-만료되는-문제)).
+- `URLProtocol` mock으로 실제 서버 없이 테스트 26개를 돌립니다.
+- Data 모듈과는 기능을 옮기면서 연결합니다. 자세한 단계: [APIService 재구성 로드맵](docs/network-roadmap.md)
+
+### 6. CI
+
+- PR과 `main` 푸시마다 GitHub Actions가 `install → generate → 암묵적 의존 검사 → 전체 테스트`를 실행합니다.
+- Tuist 버전은 `mise.toml`, Xcode 버전은 워크플로의 `XCODE_VERSION`으로 고정해 로컬과 CI가 같은 환경에서 돌게 했습니다.
 
 ## 트러블슈팅
 
@@ -235,18 +246,6 @@ Moya 플러그인에는 재시도 기능이 없습니다. 그래서 갱신과 �
 <!-- TODO(직접 작성): 잘된 점 / 아쉬운 점(솔직하게) / 다음에 할 일.
      향후 계획 후보는 CLAUDE.md의 "아직 적용하지 않은 결정": CoreNetwork 연결, DomainError, Swift 6 strict concurrency,
      아키텍처 규칙의 CI 검사, Secrets.xcconfig, Tuist 원격 캐시 -->
-
-## 실행 방법
-
-```bash
-git clone https://github.com/Younggun-Kim/HyperFocus2.git
-cd HyperFocus2
-mise install       # mise.toml에 고정된 Tuist 4.216.2 설치
-tuist install      # 외부 의존성
-tuist generate     # Xcode 프로젝트 생성
-```
-
-macOS와 Xcode 27.2가 필요합니다. 명령어, 빌드 configuration, 프로젝트 구조, 새 Feature 추가 방법은 [개발 가이드](docs/development.md)에 있습니다.
 
 ## 문서
 
