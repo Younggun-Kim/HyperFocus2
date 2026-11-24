@@ -1,5 +1,5 @@
 import ComposableArchitecture
-import SessionHistory
+import SessionLog
 import Testing
 
 @MainActor
@@ -10,5 +10,14 @@ struct SessionLogHomeFeatureTests {
         }
 
         #expect(store.state == SessionLogHomeFeature.State())
+    }
+
+    @Test func 설정_버튼을_누르면_settingTapped_delegate를_보낸다() async {
+        let store = TestStore(initialState: SessionLogHomeFeature.State()) {
+            SessionLogHomeFeature()
+        }
+
+        await store.send(.settingButtonTapped)
+        await store.receive(\.delegate.settingTapped)
     }
 }

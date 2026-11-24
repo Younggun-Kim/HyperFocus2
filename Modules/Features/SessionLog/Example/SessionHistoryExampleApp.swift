@@ -1,7 +1,7 @@
 import ComposableArchitecture
 import Domain
 import SwiftUI
-import SessionHistory
+import SessionLog
 
 @main
 struct SessionHistoryExampleApp: App {
@@ -17,11 +17,14 @@ struct SessionHistoryExampleApp: App {
 
     var body: some Scene {
         WindowGroup {
-            SessionLogHomeView(
-                store: Store(initialState: SessionLogHomeFeature.State()) {
-                    SessionLogHomeFeature()
-                }
-            )
+            // 툴바를 보이게 하려고 감싼다. Setting으로의 push는 App에서만 일어난다.
+            NavigationStack {
+                SessionLogHomeView(
+                    store: Store(initialState: SessionLogHomeFeature.State()) {
+                        SessionLogHomeFeature()
+                    }
+                )
+            }
         }
     }
 }

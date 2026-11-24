@@ -1,6 +1,6 @@
 //
 //  SessionLogHomeFeature.swift
-//  CoreNetwork
+//  SessionLog
 //
 //  Created by 김영건 on 11/24/26.
 //
@@ -12,21 +12,30 @@ import Foundation
 public struct SessionLogHomeFeature {
     @ObservableState
     public struct State: Equatable {
-        
+
         public init() {}
     }
-    
-    public enum Action: Equatable {}
-    
-    
-    
+
+    public enum Action: Equatable {
+        case settingButtonTapped
+        case delegate(Delegate)
+
+        @CasePathable
+        public enum Delegate: Equatable {
+            case settingTapped
+        }
+    }
+
     public init() {}
-    
+
     public var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
-            default:
-                break
+            case .settingButtonTapped:
+                return .send(.delegate(.settingTapped))
+
+            case .delegate:
+                return .none
             }
         }
     }
