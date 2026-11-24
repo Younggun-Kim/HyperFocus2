@@ -9,6 +9,7 @@
 import ComposableArchitecture
 import Domain
 import SwiftUI
+import DesignSystem
 
 public struct SessionLogHomeView: View {
     let store: StoreOf<SessionLogHomeFeature>
@@ -20,18 +21,30 @@ public struct SessionLogHomeView: View {
     public var body: some View {
         VStack {
             Text("세션 로그 홈")
+                .foregroundStyle(.white)
         }
         .padding()
-        .navigationTitle("기록")
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.ignoresSafeArea())
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    store.send(.settingButtonTapped)
-                } label: {
-                    Image(systemName: "gearshape")
-                }
-                .accessibilityLabel("설정")
+            if #available(iOS 26.0, *) {
+                settingToolbarItem
+                    .sharedBackgroundVisibility(.hidden)
+            } else {
+                settingToolbarItem
             }
+        }
+    }
+
+    private var settingToolbarItem: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                store.send(.settingButtonTapped)
+            } label: {
+                DesignSystemAsset.icGear.swiftUIImage
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Setting")
         }
     }
 }

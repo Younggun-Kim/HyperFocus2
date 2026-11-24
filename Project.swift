@@ -73,7 +73,7 @@ let project = Project(
             ],
             dependencies: [.target(name: "HyperFocus")]
         ),
-
+        
         // MARK: - Features
     ]
     + Target.feature(
@@ -82,11 +82,17 @@ let project = Project(
     )
     + Target.feature(
         name: "SessionLog",
-        dependencies: [.target(name: "Domain")]
+        dependencies: [
+            .target(name: "Domain"),
+            .target(name: "DesignSystem"),
+        ],
     )
     + Target.feature(
         name: "Setting",
-        dependencies: [.target(name: "Domain")]
+        dependencies: [
+            .target(name: "Domain"),
+            .target(name: "DesignSystem"),
+        ],
     )
     + [
         // MARK: - Domain
@@ -99,19 +105,19 @@ let project = Project(
                 .external(name: "DependenciesMacros"),
             ]
         ),
-
+        
         // MARK: - Data
         // Domain의 Repository 포트를 구현한다. App만 링크하고 bootstrap()으로 등록
-        .module(
-            name: "Data",
-            path: "./Modules/Data",
-            dependencies: [
-                .target(name: "Domain"),
-                .external(name: "Dependencies"),
-                .external(name: "Moya"),
-            ]
-        ),
-
+            .module(
+                name: "Data",
+                path: "./Modules/Data",
+                dependencies: [
+                    .target(name: "Domain"),
+                    .external(name: "Dependencies"),
+                    .external(name: "Moya"),
+                ]
+            ),
+        
         // MARK: - Core
         .module(
             name: "Util",
