@@ -17,7 +17,7 @@ HyperFocus는 집중 타이머 iOS 앱이다. 이 저장소는 앱을 Tuist 기�
 | 로컬 저장 | SwiftData + App Group 컨테이너 | 아직 코드 없음 |
 | 테스트 | Swift Testing(유닛), XCTest(UI) | |
 | 프로젝트 | Tuist 4.216.2 (`mise.toml`), Xcode 27.2 | `.xcodeproj`는 생성물 |
-| CI | GitHub Actions (`.github/workflows/ci.yml`) | install → generate → inspect → test |
+| CI | GitHub Actions (`.github/workflows/ci.yml`) | install → generate → inspect → test. **현재 일시 중지**(워크플로 비활성화) |
 
 라이브러리 버전은 `Tuist/Package.resolved`가 기준이다.
 
@@ -74,7 +74,7 @@ App ──→ Feature ──→ Domain ←── Data ┄┄→ CoreNetwork ─�
 
 ## 검증과 릴리스
 
-변경을 마치면 CI와 같은 순서로 확인한다.
+변경을 마치면 CI와 같은 순서로 확인한다. CI가 일시 중지된 동안에는 이 로컬 검증이 머지 전 유일한 검사다.
 
 ```bash
 tuist install                                   # 외부 의존성 (Tuist/Package.swift)
@@ -88,7 +88,7 @@ tuist test --device "iPhone 17 Pro" --no-selective-testing   # CI와 같은 전�
 
 ## 브랜치, PR, 커밋
 
-- 브랜치 → PR → CI 통과 후 squash 머지.
+- 브랜치 → PR → 검증 통과 후 squash 머지. CI가 일시 중지된 동안에는 위 "검증과 릴리스"의 로컬 검증(전체 테스트 포함)을 통과시키고, PR 설명에 결과를 적는다.
 - 커밋과 PR 제목: 접두어 `feat:` / `fix:` / `refactor:` / `test:` / `docs:` / `ci:` / `chore:` + 한국어 메시지.
 - 아키텍처 규칙을 바꾸는 PR은 루트와 해당 디렉터리의 `CLAUDE.md`도 같이 수정한다.
 
@@ -118,6 +118,7 @@ tuist test --device "iPhone 17 Pro" --no-selective-testing   # CI와 같은 전�
 결정은 했지만 코드·설정에 반영하지 않은 항목이다. 새 코드는 이 결정대로 작성한다. **요청 범위 밖의 항목은 제안만 하고 직접 바꾸지 않는다.** 적용하면 이 목록에서 지우고 해당 섹션으로 옮긴다.
 
 **코드·설정**
+- CI를 다시 켠다. 실행 시간 때문에 일시 중지했다(GitHub에서 워크플로 비활성화). 다시 켤 때는 draft PR #1(`ci/xcode-27-runner`, `xcode-27` 러너와 `iPhone 18 Pro`)을 최신 main에 맞춰 함께 적용한다. `macos-26` 러너에는 Xcode 27.2가 없어 그대로 켜면 실패한다.
 - Data의 의존성을 `Moya` → `CoreNetwork`로 바꾼다. 현재 CoreNetwork는 어디에도 링크되지 않았다.
 - Domain에 `DomainError`를 추가한다.
 - CoreNetwork의 `APIError+UserMessage.swift`에 있는 사용자 문구를 Feature로 옮기고, `APIError`의 `LocalizedError` 채택을 다시 검토한다.

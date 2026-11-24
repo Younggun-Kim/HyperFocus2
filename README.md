@@ -2,7 +2,6 @@
 
 집중할 시간을 타이머로 정해 몰입하고, 끝낸 집중 세션을 기록으로 돌아보는 iOS 집중 타이머 앱
 
-[![CI](https://github.com/Younggun-Kim/HyperFocus2/actions/workflows/ci.yml/badge.svg)](https://github.com/Younggun-Kim/HyperFocus2/actions/workflows/ci.yml)
 ![iOS](https://img.shields.io/badge/iOS-18.0%2B-blue)
 ![Tuist](https://img.shields.io/badge/Tuist-4.216.2-purple)
 
