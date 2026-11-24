@@ -36,7 +36,7 @@ flowchart LR
 
     subgraph Presentation
         FocusTimer
-        SessionHistory
+        SessionLog
     end
 
     subgraph Domain
@@ -56,7 +56,7 @@ flowchart LR
     App --> Presentation
     App -- "bootstrap()" --> Data
     FocusTimer --> Util
-    SessionHistory --> UseCase
+    SessionLog --> UseCase
     RepoLive -. 구현 .-> RepoPort
     Data -. 연결 예정 .-> CoreNetwork
 ```
@@ -220,7 +220,7 @@ init() { DataModule.bootstrap() }
 ```
 HyperFocusTests (app-hosted)
    └──→ HyperFocus (App) ──→ FocusTimer
-                        └──→ SessionHistory   ← 여기를 고쳐도 꼭대기가 다시 실행됨
+                        └──→ SessionLog       ← 여기를 고쳐도 꼭대기가 다시 실행됨
 ```
 
 **해결**
