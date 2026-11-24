@@ -3,23 +3,23 @@ import FocusTimer
 import SessionHistory
 import SwiftUI
 
-struct ContentView: View {
+struct RootView: View {
     let store: StoreOf<RootFeature>
 
     var body: some View {
         TabView {
             Tab("타이머", systemImage: "timer") {
-                FocusTimerView(store: store.scope(state: \.timer, action: \.timer))
+                FocusHomeView(store: store.scope(state: \.timer, action: \.timer))
             }
             Tab("기록", systemImage: "list.bullet") {
-                SessionHistoryView(store: store.scope(state: \.history, action: \.history))
+                SessionLogHomeView(store: store.scope(state: \.log, action: \.log))
             }
         }
     }
 }
 
 #Preview {
-    ContentView(
+    RootView(
         store: Store(initialState: RootFeature.State()) {
             RootFeature()
         }
