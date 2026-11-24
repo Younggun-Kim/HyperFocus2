@@ -30,7 +30,7 @@ let project = Project(
             ]),
             dependencies: [
                 .target(name: "FocusTimer"),
-                .target(name: "SessionHistory"),
+                .target(name: "SessionLog"),
                 .target(name: "Setting"),
                 .target(name: "Data"),
                 .external(name: "ComposableArchitecture"),
@@ -55,7 +55,8 @@ let project = Project(
             dependencies: [
                 .target(name: "HyperFocus"),
                 .target(name: "FocusTimer"),
-                .target(name: "SessionHistory"),
+                .target(name: "SessionLog"),
+                .target(name: "Setting"),
                 .target(name: "Domain"),
                 .external(name: "ComposableArchitecture"),
             ]
@@ -80,7 +81,7 @@ let project = Project(
         dependencies: [.target(name: "Util")]
     )
     + Target.feature(
-        name: "SessionHistory",
+        name: "SessionLog",
         dependencies: [.target(name: "Domain")]
     )
     + Target.feature(

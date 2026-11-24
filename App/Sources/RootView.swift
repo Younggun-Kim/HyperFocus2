@@ -1,10 +1,11 @@
 import ComposableArchitecture
 import FocusTimer
-import SessionHistory
+import SessionLog
+import Setting
 import SwiftUI
 
 struct RootView: View {
-    let store: StoreOf<RootFeature>
+    @Bindable var store: StoreOf<RootFeature>
 
     var body: some View {
         TabView {
@@ -12,7 +13,14 @@ struct RootView: View {
                 FocusHomeView(store: store.scope(state: \.timer, action: \.timer))
             }
             Tab("기록", systemImage: "list.bullet") {
-                SessionLogHomeView(store: store.scope(state: \.log, action: \.log))
+                NavigationStack(path: $store.scope(state: \.logPath, action: \.logPath)) {
+                    SessionLogHomeView(store: store.scope(state: \.log, action: \.log))
+                } destination: { store in
+                    switch store.case {
+                    case let .setting(store):
+                        SettingView(store: store)
+                    }
+                }
             }
         }
     }

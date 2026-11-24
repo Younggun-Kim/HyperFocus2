@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import FocusTimer
-import SessionHistory
+import SessionLog
+import Setting
 import Testing
 @testable import HyperFocus
 
@@ -13,6 +14,30 @@ struct RootFeatureTests {
 
         #expect(store.state.timer == FocusHomeFeature.State())
         #expect(store.state.log == SessionLogHomeFeature.State())
+        #expect(store.state.logPath.isEmpty)
+    }
+
+    @Test func 기록_화면에서_설정을_누르면_설정_화면이_쌓인다() async {
+        let store = TestStore(initialState: RootFeature.State()) {
+            RootFeature()
+        }
+
+        await store.send(\.log.settingButtonTapped)
+        await store.receive(\.log.delegate.settingTapped) {
+            $0.logPath[id: 0] = .setting(SettingFeature.State())
+        }
+    }
+
+    @Test func 설정_화면에서_뒤로_가면_스택이_비워진다() async {
+        var state = RootFeature.State()
+        state.logPath.append(.setting(SettingFeature.State()))
+        let store = TestStore(initialState: state) {
+            RootFeature()
+        }
+
+        await store.send(\.logPath.popFrom, 0) {
+            $0.logPath = StackState()
+        }
     }
 
     // Home 구조로 바꾸면서 타이머 종료 → 기록 다시 불러오기 연결이 끊겼다.
