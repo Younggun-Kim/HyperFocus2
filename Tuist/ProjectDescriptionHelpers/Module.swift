@@ -8,19 +8,27 @@ public enum Module {
 
 extension Target {
     /// `Modules/` 아래의 정적 프레임워크 모듈 (Core, Domain, Data 등)
+    ///
+    /// - `hasResources`: `{path}/Resources`를 타깃에 포함한다. 정적 프레임워크라서 Tuist가 리소스를
+    ///   별도 번들 타깃으로 만들고, `Bundle.module`과 `{name}Asset` 접근자를 합성한다.
     public static func module(
         name: String,
         path: String,
+        hasResources: Bool = false,
         dependencies: [TargetDependency] = []
     ) -> Target {
-        .target(
+        var folders: [BuildableFolder] = [.folder("\(path)/Sources")]
+        if hasResources {
+            folders.append(.folder("\(path)/Resources"))
+        }
+        return .target(
             name: name,
             destinations: .iOS,
             product: .staticFramework,
             bundleId: "\(Module.bundleIdPrefix).\(name.lowercased())",
             deploymentTargets: Module.deploymentTargets,
             infoPlist: .default,
-            buildableFolders: [.folder("\(path)/Sources")],
+            buildableFolders: folders,
             dependencies: dependencies
         )
     }
