@@ -27,18 +27,20 @@ HyperFocus는 집중 타이머 iOS 앱이다. 이 저장소는 앱을 Tuist 기�
 
 ```
 App ──→ Feature ──→ Domain ←── Data ┄┄→ CoreNetwork ──→ Moya / Alamofire
- │         └──→ Util
+ │         ├──→ Util
+ │         └──→ DesignSystem
  └──→ Data   (App만 Data를 링크하고 DataModule.bootstrap() 호출)
 ```
 
 | 모듈 | 역할 | 의존할 수 있는 대상 | 쓸 수 있는 곳 | 세부 규칙 |
 | --- | --- | --- | --- | --- |
 | App | 진입점, Feature 조립, 환경 설정 | Feature, Data, TCA | - | `App/CLAUDE.md` |
-| Feature | 화면 단위 (Sources, Example, Tests) | Domain, Util, TCA | App | `Modules/Features/CLAUDE.md` |
+| Feature | 화면 단위 (Sources, Example, Tests) | Domain, Util, DesignSystem, TCA | App | `Modules/Features/CLAUDE.md` |
 | Domain | Entity, Repository 포트, UseCase | swift-dependencies만 | Feature, Data | `Modules/Domain/CLAUDE.md` |
 | Data | Repository 구현, DataSource | Domain, CoreNetwork, swift-dependencies | App | `Modules/Data/CLAUDE.md` |
 | CoreNetwork | 통신 공통 코드 (`APIService`, 토큰 갱신) | Moya, Alamofire | Data | `Modules/Core/CoreNetwork/CLAUDE.md` |
 | Util | 순수 유틸리티 | 없음 | 모든 모듈 | - |
+| DesignSystem | 공통 UI 리소스와 컴포넌트 (`Resources/`의 에셋, `DesignSystemAsset` 접근자) | 없음 | Feature, App | - |
 
 ## 아키텍처 규칙
 

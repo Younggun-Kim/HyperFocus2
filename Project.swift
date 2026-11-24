@@ -132,5 +132,10 @@ let project = Project(
                 .external(name: "Moya"),
             ]
         ),
+        .module(
+            name: "DesignSystem",
+            path: "./Modules/Core/DesignSystem",
+            hasResources: true
+        ),
     ]
 )
