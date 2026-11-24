@@ -17,9 +17,9 @@ struct SessionHistoryExampleApp: App {
 
     var body: some Scene {
         WindowGroup {
-            SessionHistoryView(
-                store: Store(initialState: SessionHistoryFeature.State()) {
-                    SessionHistoryFeature()
+            SessionLogHomeView(
+                store: Store(initialState: SessionLogHomeFeature.State()) {
+                    SessionLogHomeFeature()
                 }
             )
         }

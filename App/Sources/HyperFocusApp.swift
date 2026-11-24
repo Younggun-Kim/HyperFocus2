@@ -15,7 +15,7 @@ struct HyperFocusApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(store: Self.store)
+            RootView(store: Self.store)
         }
     }
 }
