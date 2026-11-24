@@ -37,6 +37,7 @@ flowchart LR
     subgraph Presentation
         FocusTimer
         SessionLog
+        Setting
     end
 
     subgraph Domain
