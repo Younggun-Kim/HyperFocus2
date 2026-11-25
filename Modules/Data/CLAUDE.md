@@ -12,14 +12,15 @@ Domain의 Repository 포트를 구현하는 모듈. App만 링크한다. 공통 
 
 - 구현은 `Sources/Repository/XxxRepository+Live.swift`의 `liveValue`에 둔다. 저장 방식과 묶인 처리(조회, 변환, 캐시)는 여기서 한다.
 - DataSource는 구체 타입으로 두고 swift-dependencies로 주입하지 않는다.
-- 저장 방식 타입은 `internal`로 둔다. API별 `TargetType`과 DTO는 `DataSource/Remote`, SwiftData `@Model`은 `DataSource` 아래에 둔다. `liveValue`에서 Entity로 변환해 반환하고, 이 타입들을 `public`으로 열지 않는다.
-- 통신은 CoreNetwork의 API만 쓴다. Moya·Alamofire를 import하지 않는다.
-- (미적용) `Project.swift`에서 Data가 `Moya`에 의존하고 있다. 의존성을 `Moya` → `CoreNetwork`로 바꾼다. 현재 Data 소스에는 `import Moya`가 없다.
+- 저장 방식 타입은 `internal`로 둔다. API별 `APIEndpoint`와 DTO는 `DataSource/Remote`, SwiftData `@Model`은 `DataSource` 아래에 둔다. `liveValue`에서 Entity로 변환해 반환하고, 이 타입들을 `public`으로 열지 않는다.
+- 통신은 CoreNetwork의 API만 쓴다. Moya·Alamofire를 import하지 않는다. API는 `APIEndpoint`를 채택한 enum으로 기술한다.
+- `APIService`는 `Sources/Network/DataNetwork.swift`에서 하나만 만든다(baseURL은 Info.plist의 `API_BASE_URL`, 토큰은 키체인).
+- Repository `liveValue`는 `live(service:)` 팩토리로 만들어, 테스트가 가짜 `APIServiceProtocol`을 넣을 수 있게 한다.
 
 ## 에러
 
 - `APIError`와 SwiftData 에러를 **Domain 에러로 변환**해서 던진다. 아래 계층의 에러 타입을 그대로 올려 보내지 않는다.
-- 변환하기 **전에** 원본을 `os.Logger`로 로깅한다(category `Data`). 토큰과 사용자 데이터에 `privacy: .public`을 붙이지 않는다.
+- 변환하기 **전에** 원본을 `os.Logger`로 로깅한다(category `Data`). `convertingErrors`로 감싸면 둘 다 처리된다. 취소는 `CancellationError`로 올린다. 토큰과 사용자 데이터에 `privacy: .public`을 붙이지 않는다.
 
 ## SwiftData
 
@@ -30,4 +31,3 @@ Domain의 Repository 포트를 구현하는 모듈. App만 링크한다. 공통 
 ## 테스트
 
 - Repository `liveValue`: DTO/`@Model` → Entity 변환과 에러 변환을 검증한다.
-- (미적용) 테스트 타깃이 없다. `Project.swift`에 `Target.moduleTests(name: "Data", ...)`로 추가한다.

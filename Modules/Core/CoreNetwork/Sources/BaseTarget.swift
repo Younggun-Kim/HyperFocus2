@@ -1,19 +1,14 @@
 import Foundation
 import Moya
 
-/// 기본 TargetType 프로토콜
-/// 모든 API Target은 이 프로토콜을 준수해야 합니다.
-public protocol BaseTarget: TargetType {
+/// CoreNetwork 안에서 Moya에 넘기는 TargetType.
+/// 바깥에는 `APIEndpoint`만 공개하고, `APIService`가 `EndpointTarget`으로 감싸서 이 타입으로 바꾼다.
+protocol BaseTarget: TargetType {
     /// `true`면 `Authorization` 헤더를 붙여 보내고, 토큰이 없으면 요청을 보내지 않는다.
     var requiresAuth: Bool { get }
 }
 
-public extension BaseTarget {
-    // TODO: 환경변수 주입해서 처리하도록
-    var baseURL: URL {
-        return URL(string: "https://example.com")!
-    }
-
+extension BaseTarget {
     /// 기본 헤더
     var headers: [String: String]? {
         return NetworkHeader.basic
@@ -32,4 +27,29 @@ public extension BaseTarget {
     var requiresAuth: Bool {
         return true
     }
+}
+
+/// `APIEndpoint`에 baseURL을 붙여 Moya가 보낼 수 있는 형태로 만든다.
+struct EndpointTarget: BaseTarget {
+    let baseURL: URL
+    let endpoint: any APIEndpoint
+
+    var path: String { endpoint.path }
+
+    var method: Moya.Method {
+        switch endpoint.method {
+        case .get: return .get
+        case .post: return .post
+        case .put: return .put
+        case .patch: return .patch
+        case .delete: return .delete
+        }
+    }
+
+    var task: Moya.Task {
+        guard let body = endpoint.body else { return .requestPlain }
+        return .requestJSONEncodable(body)
+    }
+
+    var requiresAuth: Bool { endpoint.requiresAuth }
 }

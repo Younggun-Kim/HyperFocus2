@@ -1,2 +1,4 @@
 APP_DISPLAY_NAME = HyperFocus
 APP_GROUP_ID = group.com.hyperfocus.timer
+// `//`는 xcconfig 주석이라 `$()`로 끊는다
+API_BASE_URL = https:/$()/api-hyperfocus.meetory.io

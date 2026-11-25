@@ -10,7 +10,7 @@
 
 ## 설정과 비밀값
 
-- 환경별 값은 `Configs/{Debug,Release}.xcconfig` → 빌드 설정 → Info.plist 순서로 흘려보낸다(예: `APP_DISPLAY_NAME`, `APP_GROUP_ID`). 코드에 `#if DEBUG`로 하드코딩하지 않는다.
+- 환경별 값은 `Configs/{Debug,Release}.xcconfig` → 빌드 설정 → Info.plist 순서로 흘려보낸다(예: `APP_DISPLAY_NAME`, `APP_GROUP_ID`, `API_BASE_URL`). 코드에 `#if DEBUG`로 하드코딩하지 않는다.
 - xcconfig에 키를 추가하면 파일 끝 줄바꿈을 확인한다. 없으면 값이 에러 없이 빈 문자열이 된다.
 - 비밀값은 커밋하지 않는다. (미적용) `Configs/Secrets.xcconfig`를 gitignore하고 각 xcconfig에서 `#include? "Secrets.xcconfig"`로 선택적으로 포함한다. CI는 GitHub Secrets로 이 파일을 만든다.
 - 버전(`MARKETING_VERSION`)과 빌드 번호(`CURRENT_PROJECT_VERSION`)는 매니페스트나 xcconfig에서 관리한다. Xcode UI에서 바꾸지 않는다(생성물이라 사라진다).

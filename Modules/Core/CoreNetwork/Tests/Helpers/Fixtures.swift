@@ -34,7 +34,7 @@ extension APIService {
     ) -> APIService {
         let provider = MoyaProvider<MultiTarget>(
             endpointClosure: { target in
-                Endpoint(
+                Moya.Endpoint(
                     url: URL(target: target).absoluteString,
                     sampleResponseClosure: { sample },
                     method: target.method,
@@ -44,6 +44,28 @@ extension APIService {
             },
             stubClosure: { _ in behavior }
         )
-        return APIService(provider: provider, authProvider: provider)
+        return APIService(baseURL: .stub, provider: provider, authProvider: provider)
     }
+}
+
+extension URL {
+    /// `APIEndpoint`로 보낼 때 붙는 baseURL. `StubTarget`은 자기 baseURL을 쓰므로 쓰이지 않는다.
+    static let stub = URL(string: "https://example.com")!
+}
+
+extension APIService {
+    /// 인터셉터 테스트용. baseURL은 `StubTarget`이 직접 정하므로 고정값을 넣는다.
+    init(tokenManager: TokenManager, configuration: URLSessionConfiguration) {
+        self.init(baseURL: .stub, tokenManager: tokenManager, configuration: configuration)
+    }
+}
+
+/// `APIEndpoint`가 `EndpointTarget`으로 바뀌는지 확인하는 API
+struct StubEndpoint: APIEndpoint {
+    struct Body: Encodable, Sendable { let name: String }
+
+    var path = "/endpoint"
+    var method: HTTPMethod = .get
+    var body: (any Encodable & Sendable)?
+    var requiresAuth = true
 }

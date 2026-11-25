@@ -71,6 +71,8 @@ public struct SettingView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignSystemAsset.Colors.bgPrimary.swiftUIColor.ignoresSafeArea())
+        .onAppear { store.send(.onAppear) }
+        .alert($store.scope(state: \.destination?.alert, action: \.destination.alert))
         .sheet(isPresented: webPageBinding) {
             if let url = store.destination?.webPage {
                 WebPageView(url: url)
@@ -104,13 +106,7 @@ public struct SettingView: View {
     /// 읽기는 store 값, 쓰기는 `deviceSettingChanged` 액션으로 보내는 바인딩.
     private func binding(_ type: SettingMenuType.DeviceSetting) -> Binding<Bool> {
         Binding(
-            get: {
-                switch type {
-                case .sound: store.soundOn
-                case .haptic: store.hapticOn
-                case .alarm: store.alarmOn
-                }
-            },
+            get: { store.setting[type] },
             set: { store.send(.deviceSettingChanged(type: type, isOn: $0)) }
         )
     }

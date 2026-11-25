@@ -11,6 +11,14 @@ struct SettingExampleApp: App {
             $0.feedbackRepository.sendFeedback = { _, _ in
                 try await Task.sleep(for: .seconds(1))
             }
+            $0.settingRepository.fetchSetting = {
+                try await Task.sleep(for: .seconds(1))
+                return AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: true)
+            }
+            $0.settingRepository.updateSetting = { setting in
+                try await Task.sleep(for: .milliseconds(500))
+                return setting
+            }
         }
     }
 

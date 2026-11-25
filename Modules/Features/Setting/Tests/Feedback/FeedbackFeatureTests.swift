@@ -65,13 +65,13 @@ struct FeedbackFeatureTests {
         let store = TestStore(initialState: FeedbackFeature.State(text: "의견")) {
             FeedbackFeature()
         } withDependencies: {
-            $0.sendFeedbackUseCase.execute = { _, _ in throw SendError() }
+            $0.sendFeedbackUseCase.execute = { _, _ in throw DomainError.invalid }
         }
 
         await store.send(.sendTapped) {
             $0.isSending = true
         }
-        await store.receive(.sendFailed) {
+        await store.receive(.sendFailed(.invalid)) {
             $0.isSending = false
             $0.alert = AlertState {
                 TextState("Failed to send feedback.")
@@ -81,6 +81,41 @@ struct FeedbackFeatureTests {
                 TextState("Please try again in a moment.")
             }
         }
+        #expect(store.state.text == "의견")
+    }
+
+    @Test func 오프라인이면_연결을_확인하라고_알린다() async {
+        let store = TestStore(initialState: FeedbackFeature.State(text: "의견")) {
+            FeedbackFeature()
+        } withDependencies: {
+            $0.sendFeedbackUseCase.execute = { _, _ in throw DomainError.offline }
+        }
+
+        await store.send(.sendTapped) {
+            $0.isSending = true
+        }
+        await store.receive(.sendFailed(.offline)) {
+            $0.isSending = false
+            $0.alert = AlertState {
+                TextState("Failed to send feedback.")
+            } actions: {
+                ButtonState(role: .cancel) { TextState("OK") }
+            } message: {
+                TextState("Please check your internet connection.")
+            }
+        }
+    }
+
+    @Test func Domain_에러가_아니면_unknown으로_다룬다() async {
+        let store = TestStore(initialState: FeedbackFeature.State(text: "의견")) {
+            FeedbackFeature()
+        } withDependencies: {
+            $0.sendFeedbackUseCase.execute = { _, _ in throw SendError() }
+        }
+        store.exhaustivity = .off
+
+        await store.send(.sendTapped)
+        await store.receive(.sendFailed(.unknown))
     }
 
     @Test func 닫기를_누르면_시트를_닫는다() async {
