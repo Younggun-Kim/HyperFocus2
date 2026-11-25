@@ -11,6 +11,9 @@ public struct SettingView: View {
     
     public var body: some View {
         VStack(spacing: 20) {
+            AppleLoginView()
+                .padding(.bottom, 40)
+            
             VStack(spacing: 16) {
                 ForEach(SettingMenuType.DeviceSetting.allCases, id: \.self) { item in
                     SettingMenu(type: .device(item)) {
@@ -41,6 +44,27 @@ public struct SettingView: View {
                     .buttonStyle(.plain)
                 }
             }
+            .padding(.bottom, 16)
+            
+            // TODO: - Apple 로그인 했을 때만 노출
+            HStack(spacing: 30) {
+                Button(action: {
+                    
+                }) {
+                    Text("Sign Out")
+                        .font(.caption)
+                        .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
+                }
+                Button(action: {
+                    
+                }) {
+                    Text("Delete Account")
+                        .font(.caption)
+                        .foregroundStyle(DesignSystemAsset.Colors.systemRed.swiftUIColor)
+                }
+            }
+            .padding(.top, 32)
+            .padding(.bottom, 10)
             
             Spacer()
         }
