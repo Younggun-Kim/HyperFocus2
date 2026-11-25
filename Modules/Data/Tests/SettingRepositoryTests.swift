@@ -1,0 +1,64 @@
+import CoreNetwork
+import Domain
+import Testing
+@testable import Data
+
+struct SettingRepositoryTests {
+    private let settingJSON = #"{"success": true, "data": {"soundEnabled": true, "hapticEnabled": false, "alarmEnabled": true}}"#
+
+    @Test func 설정을_조회하면_응답을_Entity로_바꾼다() async throws {
+        let service = FakeAPIService(.json(settingJSON))
+        let repository = SettingRepository.live(service: service)
+
+        let setting = try await repository.fetchSetting()
+
+        #expect(setting == AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: true))
+        #expect(service.endpoints.first as? SettingEndpoint == .fetch)
+    }
+
+    @Test func 설정을_변경하면_전체_값을_PATCH로_보내고_서버_값을_돌려준다() async throws {
+        let service = FakeAPIService(.json(settingJSON))
+        let repository = SettingRepository.live(service: service)
+        let requested = AppSetting(soundEnabled: true, hapticEnabled: true, alarmEnabled: true)
+
+        let setting = try await repository.updateSetting(requested)
+
+        let endpoint = try #require(service.endpoints.first as? SettingEndpoint)
+        #expect(endpoint == .update(SettingRequestDTO(requested)))
+        #expect(endpoint.method == .patch)
+        #expect(setting == AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: true))
+    }
+
+    @Test func 응답에_data가_없으면_notFound를_던진다() async {
+        let repository = SettingRepository.live(service: FakeAPIService(.json(#"{"success": true, "data": null}"#)))
+
+        await #expect(throws: DomainError.notFound) {
+            try await repository.fetchSetting()
+        }
+    }
+
+    @Test func 통신_에러는_Domain_에러로_바꿔_던진다() async {
+        let repository = SettingRepository.live(service: FakeAPIService(.failure(APIError.networkError("offline"))))
+
+        await #expect(throws: DomainError.offline) {
+            try await repository.fetchSetting()
+        }
+    }
+
+    @Test func 요청이_취소되면_CancellationError를_던진다() async {
+        let repository = SettingRepository.live(service: FakeAPIService(.failure(APIError.cancelled)))
+
+        await #expect(throws: CancellationError.self) {
+            try await repository.fetchSetting()
+        }
+    }
+
+    @Test func 알_수_없는_에러는_unknown으로_바꾼다() async {
+        struct Unexpected: Error {}
+        let repository = SettingRepository.live(service: FakeAPIService(.failure(Unexpected())))
+
+        await #expect(throws: DomainError.unknown) {
+            try await repository.fetchSetting()
+        }
+    }
+}

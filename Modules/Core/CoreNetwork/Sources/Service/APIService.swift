@@ -11,26 +11,34 @@ import Moya
 import Synchronization
 
 
-public protocol APIServiceProtocol {
+/// Data가 쓰는 통신 진입점. Moya 타입이 드러나지 않도록 `APIEndpoint`만 받는다.
+/// Data의 테스트는 이 프로토콜의 가짜 구현을 넣어 Repository를 검증한다.
+public protocol APIServiceProtocol: Sendable {
     /// 요청 실행 (APIResponse 래핑)
-    func request<T: BaseTarget, D: Decodable & Sendable>(
-        _ target: T,
+    func request<D: Decodable & Sendable>(
+        _ endpoint: some APIEndpoint,
         responseType: D.Type
     ) async throws -> APIResponse<D>
-    
+
     /// Raw Data 요청 (파일 다운로드 등)
-    func requestData<T: BaseTarget>(_ target: T) async throws -> Data
+    func requestData(_ endpoint: some APIEndpoint) async throws -> Data
 }
 
-public struct APIService: APIServiceProtocol {
+/// `MoyaProvider`가 `Sendable`을 채택하지 않아 `@unchecked`로 둔다.
+/// 저장 속성은 모두 `let`이고, provider는 요청마다 새 상태를 만들어 여러 스레드에서 불러도 된다.
+public struct APIService: APIServiceProtocol, @unchecked Sendable {
+    private let baseURL: URL
     private let provider: MoyaProvider<MultiTarget>
     private let authProvider: MoyaProvider<MultiTarget>
 
+    /// - Parameter baseURL: 모든 `APIEndpoint.path` 앞에 붙는 주소. 환경별 값은 App의 xcconfig에서 온다.
     public init(
+        baseURL: URL,
         tokenManager: TokenManager,
         configuration: URLSessionConfiguration = .af.default
     ) {
         self.init(
+            baseURL: baseURL,
             provider: MoyaProvider(
                 session: Session(configuration: configuration, startRequestsImmediately: false)
             ),
@@ -45,12 +53,29 @@ public struct APIService: APIServiceProtocol {
     }
 
     /// `requiresAuth`에 따라 `authProvider`(인터셉터 있음)와 `provider`(없음) 중 하나로 보낸다.
-    init(provider: MoyaProvider<MultiTarget>, authProvider: MoyaProvider<MultiTarget>) {
+    init(
+        baseURL: URL,
+        provider: MoyaProvider<MultiTarget>,
+        authProvider: MoyaProvider<MultiTarget>
+    ) {
+        self.baseURL = baseURL
         self.provider = provider
         self.authProvider = authProvider
     }
     
-    public func request<T: BaseTarget, D: Decodable & Sendable>(
+    public func request<D: Decodable & Sendable>(
+        _ endpoint: some APIEndpoint,
+        responseType: D.Type
+    ) async throws -> APIResponse<D> {
+        try await request(EndpointTarget(baseURL: baseURL, endpoint: endpoint), responseType: responseType)
+    }
+
+    public func requestData(_ endpoint: some APIEndpoint) async throws -> Data {
+        try await requestData(EndpointTarget(baseURL: baseURL, endpoint: endpoint))
+    }
+
+    /// CoreNetwork 안(테스트 포함)에서 `BaseTarget`을 직접 보낼 때 쓴다.
+    func request<T: BaseTarget, D: Decodable & Sendable>(
         _ target: T,
         responseType: D.Type
     ) async throws -> APIResponse<D> {
@@ -63,7 +88,7 @@ public struct APIService: APIServiceProtocol {
         }
     }
     
-    public func requestData<T: BaseTarget>(_ target: T) async throws -> Data {
+    func requestData<T: BaseTarget>(_ target: T) async throws -> Data {
         try await send(target)
     }
     

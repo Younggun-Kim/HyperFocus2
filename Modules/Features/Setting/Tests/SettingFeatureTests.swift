@@ -1,52 +1,179 @@
 import ComposableArchitecture
+import Domain
 import Testing
 @testable import Setting
 
 @MainActor
 struct SettingFeatureTests {
-    @Test func 화면이_나타나도_상태는_그대로다() async {
+    private let stored = AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: true)
+
+    // MARK: - 조회
+
+    @Test func 화면이_나타나면_저장된_설정을_불러온다() async {
         let store = TestStore(initialState: SettingFeature.State()) {
             SettingFeature()
+        } withDependencies: {
+            $0.fetchSettingUseCase.execute = { [stored] in stored }
+        }
+
+        await store.send(.onAppear)
+        await store.receive(.settingLoaded(stored)) {
+            $0.setting = self.stored
+            $0.savedSetting = self.stored
+        }
+    }
+
+    @Test func 불러오지_못하면_알림을_띄우고_기본값을_유지한다() async {
+        let store = TestStore(initialState: SettingFeature.State()) {
+            SettingFeature()
+        } withDependencies: {
+            $0.fetchSettingUseCase.execute = { throw DomainError.offline }
+        }
+
+        await store.send(.onAppear)
+        await store.receive(.settingLoadFailed(.offline)) {
+            $0.destination = .alert(AlertState.settingFailure(.offline, action: .load)!)
+        }
+        #expect(store.state.setting == .default)
+    }
+
+    @Test(arguments: [DomainError.unauthorized, .notFound])
+    func 인증_문제나_저장된_값이_없으면_알리지_않는다(error: DomainError) async {
+        let store = TestStore(initialState: SettingFeature.State()) {
+            SettingFeature()
+        } withDependencies: {
+            $0.fetchSettingUseCase.execute = { throw error }
+        }
+
+        await store.send(.onAppear)
+        await store.receive(.settingLoadFailed(error))
+    }
+
+    @Test func 조회가_취소되면_아무것도_하지_않는다() async {
+        let store = TestStore(initialState: SettingFeature.State()) {
+            SettingFeature()
+        } withDependencies: {
+            $0.fetchSettingUseCase.execute = { throw CancellationError() }
         }
 
         await store.send(.onAppear)
     }
 
-    @Test func 기기_설정을_켜면_해당_항목만_켜진다() async {
+    // MARK: - 변경
+
+    @Test func 토글하면_바로_바뀌고_전체_값을_저장한다() async {
+        let saved = LockIsolated<AppSetting?>(nil)
+        let store = TestStore(initialState: SettingFeature.State(setting: stored)) {
+            SettingFeature()
+        } withDependencies: {
+            $0.updateSettingUseCase.execute = { setting in
+                saved.setValue(setting)
+                return setting
+            }
+        }
+        var expected = stored
+        expected.hapticEnabled = true
+
+        await store.send(.deviceSettingChanged(type: .haptic, isOn: true)) {
+            $0.setting = expected
+        }
+        await store.receive(.settingSaved(expected)) {
+            $0.savedSetting = expected
+        }
+        #expect(saved.value == expected)
+    }
+
+    @Test(arguments: SettingMenuType.DeviceSetting.allCases)
+    func 각_항목은_자기_값만_바꾼다(type: SettingMenuType.DeviceSetting) async {
         let store = TestStore(initialState: SettingFeature.State()) {
             SettingFeature()
+        } withDependencies: {
+            $0.updateSettingUseCase.execute = { $0 }
         }
+        var expected = AppSetting.default
+        expected[type] = true
 
-        await store.send(.deviceSettingChanged(type: .sound, isOn: true)) {
-            $0.soundOn = true
+        await store.send(.deviceSettingChanged(type: type, isOn: true)) {
+            $0.setting = expected
         }
-        await store.send(.deviceSettingChanged(type: .haptic, isOn: true)) {
-            $0.hapticOn = true
-        }
-        await store.send(.deviceSettingChanged(type: .alarm, isOn: true)) {
-            $0.alarmOn = true
+        await store.receive(.settingSaved(expected)) {
+            $0.savedSetting = expected
         }
     }
 
-    @Test func 기기_설정을_끄면_해당_항목만_꺼진다() async {
-        let store = TestStore(
-            initialState: SettingFeature.State(soundOn: true, hapticOn: true, alarmOn: true)
-        ) {
-            SettingFeature()
-        }
-
-        await store.send(.deviceSettingChanged(type: .haptic, isOn: false)) {
-            $0.hapticOn = false
-        }
-    }
-
-    @Test func 같은_값이_다시_들어와도_상태는_그대로다() async {
-        let store = TestStore(initialState: SettingFeature.State(soundOn: true)) {
+    @Test func 같은_값이_다시_들어오면_저장하지_않는다() async {
+        let store = TestStore(initialState: SettingFeature.State(setting: stored)) {
             SettingFeature()
         }
 
         await store.send(.deviceSettingChanged(type: .sound, isOn: true))
     }
+
+    @Test func 저장에_실패하면_마지막으로_저장된_값으로_되돌린다() async {
+        let store = TestStore(initialState: SettingFeature.State(setting: stored)) {
+            SettingFeature()
+        } withDependencies: {
+            $0.updateSettingUseCase.execute = { _ in throw DomainError.unknown }
+        }
+
+        await store.send(.deviceSettingChanged(type: .alarm, isOn: false)) {
+            $0.setting.alarmEnabled = false
+        }
+        await store.receive(.settingSaveFailed(.unknown)) {
+            $0.setting = self.stored
+            $0.destination = .alert(AlertState.settingFailure(.unknown, action: .save)!)
+        }
+    }
+
+    @Test func 연달아_토글하면_마지막_값만_저장된다() async {
+        let clock = TestClock()
+        let store = TestStore(initialState: SettingFeature.State()) {
+            SettingFeature()
+        } withDependencies: {
+            $0.updateSettingUseCase.execute = { setting in
+                try await clock.sleep(for: .seconds(1))
+                return setting
+            }
+        }
+        let soundOnly = AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: false)
+        let both = AppSetting(soundEnabled: true, hapticEnabled: true, alarmEnabled: false)
+
+        await store.send(.deviceSettingChanged(type: .sound, isOn: true)) {
+            $0.setting = soundOnly
+        }
+        await store.send(.deviceSettingChanged(type: .haptic, isOn: true)) {
+            $0.setting = both
+        }
+        await clock.advance(by: .seconds(1))
+        await store.receive(.settingSaved(both)) {
+            $0.savedSetting = both
+        }
+    }
+
+    @Test func 조회_중에_토글하면_늦게_온_조회_결과가_덮어쓰지_않는다() async {
+        let clock = TestClock()
+        let store = TestStore(initialState: SettingFeature.State()) {
+            SettingFeature()
+        } withDependencies: { [stored] in
+            $0.fetchSettingUseCase.execute = {
+                try await clock.sleep(for: .seconds(1))
+                return stored
+            }
+            $0.updateSettingUseCase.execute = { $0 }
+        }
+        let toggled = AppSetting(soundEnabled: false, hapticEnabled: false, alarmEnabled: true)
+
+        await store.send(.onAppear)
+        await store.send(.deviceSettingChanged(type: .alarm, isOn: true)) {
+            $0.setting = toggled
+        }
+        await store.receive(.settingSaved(toggled)) {
+            $0.savedSetting = toggled
+        }
+        await clock.advance(by: .seconds(1))
+    }
+
+    // MARK: - About Us
 
     @Test(arguments: [SettingMenuType.AboutUs.privacyPolicy, .termsOfService])
     func 문서_항목을_누르면_웹_페이지_시트를_띄운다(item: SettingMenuType.AboutUs) async throws {

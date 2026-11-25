@@ -39,7 +39,7 @@ public struct FeedbackFeature {
         case closeTapped
         case sendTapped
         case sendSucceeded
-        case sendFailed
+        case sendFailed(DomainError)
         case alert(PresentationAction<Alert>)
         case delegate(Delegate)
 
@@ -80,7 +80,7 @@ public struct FeedbackFeature {
                     } catch is CancellationError {
                         // 시트가 닫혀 취소된 경우. 알릴 대상이 없다.
                     } catch {
-                        await send(.sendFailed)
+                        await send(.sendFailed(error as? DomainError ?? .unknown))
                     }
                 }
 
@@ -88,15 +88,9 @@ public struct FeedbackFeature {
                 state.isSending = false
                 return .send(.delegate(.sent))
 
-            case .sendFailed:
+            case let .sendFailed(error):
                 state.isSending = false
-                state.alert = AlertState {
-                    TextState("Failed to send feedback.")
-                } actions: {
-                    ButtonState(role: .cancel) { TextState("OK") }
-                } message: {
-                    TextState("Please try again in a moment.")
-                }
+                state.alert = .sendFailure(error)
                 return .none
 
             case .alert, .delegate:
@@ -104,5 +98,21 @@ public struct FeedbackFeature {
             }
         }
         .ifLet(\.$alert, action: \.alert)
+    }
+}
+
+extension AlertState where Action == FeedbackFeature.Action.Alert {
+    /// Domain 에러를 사용자 문구로 바꾼다. 입력한 내용은 그대로 두므로 다시 보내면 된다.
+    static func sendFailure(_ error: DomainError) -> Self {
+        AlertState {
+            TextState("Failed to send feedback.")
+        } actions: {
+            ButtonState(role: .cancel) { TextState("OK") }
+        } message: {
+            switch error {
+            case .offline: TextState("Please check your internet connection.")
+            case .unauthorized, .notFound, .invalid, .unknown: TextState("Please try again in a moment.")
+            }
+        }
     }
 }

@@ -19,6 +19,7 @@ let project = Project(
                         "UIImageName": "",
                     ],
                     "CFBundleDisplayName": "$(APP_DISPLAY_NAME)",
+                    "API_BASE_URL": "$(API_BASE_URL)",
                 ]
             ),
             buildableFolders: [
@@ -105,18 +106,33 @@ let project = Project(
                 .external(name: "DependenciesMacros"),
             ]
         ),
+        .moduleTests(
+            name: "Domain",
+            path: "./Modules/Domain",
+            dependencies: [
+                .external(name: "Dependencies"),
+            ]
+        ),
         
         // MARK: - Data
         // Domain의 Repository 포트를 구현한다. App만 링크하고 bootstrap()으로 등록
-            .module(
-                name: "Data",
-                path: "./Modules/Data",
-                dependencies: [
-                    .target(name: "Domain"),
-                    .external(name: "Dependencies"),
-                    .external(name: "Moya"),
-                ]
-            ),
+        .module(
+            name: "Data",
+            path: "./Modules/Data",
+            dependencies: [
+                .target(name: "Domain"),
+                .target(name: "CoreNetwork"),
+                .external(name: "Dependencies"),
+            ]
+        ),
+        .moduleTests(
+            name: "Data",
+            path: "./Modules/Data",
+            dependencies: [
+                .target(name: "Domain"),
+                .target(name: "CoreNetwork"),
+            ]
+        ),
         
         // MARK: - Core
         .module(

@@ -11,6 +11,8 @@ public enum DataModule {
     public static func bootstrap() {
         prepareDependencies {
             $0.sampleRepository = SampleRepository.liveValue
+            $0.settingRepository = SettingRepository.liveValue
+            $0.feedbackRepository = FeedbackRepository.liveValue
         }
     }
 }
