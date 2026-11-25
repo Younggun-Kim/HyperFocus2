@@ -78,3 +78,14 @@ extension SettingMenuType.AboutUs {
         }
     }
 }
+
+extension SettingMenuType.AboutUs {
+    /// 웹 페이지 시트로 여는 문서의 주소. 웹 페이지가 아닌 항목은 nil.
+    var url: URL? {
+        switch self {
+        case .privacyPolicy: return URL(string: "https://hyperfocus.meetory.io/privacy.html")
+        case .termsOfService: return URL(string: "https://hyperfocus.meetory.io/service.html")
+        case .talkToDeveloper: return nil
+        }
+    }
+}

@@ -3,11 +3,21 @@ import Foundation
 
 @Reducer
 public struct SettingFeature {
+    /// 설정 화면에서 띄우는 시트.
+    @Reducer
+    public enum Destination {
+        /// 개인정보처리방침, 이용약관. 로직이 없어 주소만 들고 있다.
+        @ReducerCaseIgnored
+        case webPage(URL)
+        case feedback(FeedbackFeature)
+    }
+
     @ObservableState
     public struct State: Equatable {
         var soundOn: Bool
         var hapticOn: Bool
         var alarmOn: Bool
+        @Presents var destination: Destination.State?
 
         public init(
             soundOn: Bool = false,
@@ -24,12 +34,7 @@ public struct SettingFeature {
         case onAppear
         case deviceSettingChanged(type: SettingMenuType.DeviceSetting, isOn: Bool)
         case aboutUsTapped(SettingMenuType.AboutUs)
-        case delegate(Delegate)
-
-        public enum Delegate: Equatable {
-            /// About Us 항목 선택. 화면 이동은 부모가 처리한다.
-            case aboutUsSelected(SettingMenuType.AboutUs)
-        }
+        case destination(PresentationAction<Destination.Action>)
     }
 
     public init() {}
@@ -47,10 +52,22 @@ public struct SettingFeature {
                 }
                 return .none
             case let .aboutUsTapped(item):
-                return .send(.delegate(.aboutUsSelected(item)))
-            case .delegate:
+                if let url = item.url {
+                    state.destination = .webPage(url)
+                } else {
+                    state.destination = .feedback(FeedbackFeature.State())
+                }
+                return .none
+            case .destination(.presented(.feedback(.delegate(.sent)))):
+                state.destination = nil
+                return .none
+            case .destination:
                 return .none
             }
         }
+        .ifLet(\.$destination, action: \.destination)
     }
 }
+
+extension SettingFeature.Destination.State: Equatable {}
+extension SettingFeature.Destination.Action: Equatable {}

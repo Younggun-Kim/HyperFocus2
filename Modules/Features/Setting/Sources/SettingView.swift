@@ -3,7 +3,7 @@ import DesignSystem
 import SwiftUI
 
 public struct SettingView: View {
-    let store: StoreOf<SettingFeature>
+    @Bindable var store: StoreOf<SettingFeature>
     
     public init(store: StoreOf<SettingFeature>) {
         self.store = store
@@ -43,6 +43,31 @@ public struct SettingView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black.ignoresSafeArea())
+        .sheet(isPresented: webPageBinding) {
+            if let url = store.destination?.webPage {
+                WebPageView(url: url)
+                    .ignoresSafeArea(edges: .bottom)
+                    .presentationDragIndicator(.visible)
+                    .presentationDetents([.large])
+            }
+        }
+        .sheet(item: $store.scope(state: \.destination?.feedback, action: \.destination.feedback)) { feedbackStore in
+            FeedbackView(store: feedbackStore)
+                .presentationDragIndicator(.visible)
+                .presentationDetents([.large])
+        }
+    }
+
+    /// 웹 페이지 케이스는 리듀서가 없어 scope로 바인딩할 수 없으므로 직접 만든다.
+    private var webPageBinding: Binding<Bool> {
+        Binding(
+            get: { store.destination?.webPage != nil },
+            set: { isPresented in
+                if !isPresented, store.destination?.webPage != nil {
+                    store.send(.destination(.dismiss))
+                }
+            }
+        )
     }
     
     /// 읽기는 store 값, 쓰기는 `deviceSettingChanged` 액션으로 보내는 바인딩.
