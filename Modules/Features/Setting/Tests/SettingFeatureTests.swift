@@ -47,4 +47,14 @@ struct SettingFeatureTests {
 
         await store.send(.deviceSettingChanged(type: .sound, isOn: true))
     }
+
+    @Test(arguments: SettingMenuType.AboutUs.allCases)
+    func About_Us_항목을_누르면_부모에게_알린다(item: SettingMenuType.AboutUs) async {
+        let store = TestStore(initialState: SettingFeature.State()) {
+            SettingFeature()
+        }
+
+        await store.send(.aboutUsTapped(item))
+        await store.receive(.delegate(.aboutUsSelected(item)))
+    }
 }

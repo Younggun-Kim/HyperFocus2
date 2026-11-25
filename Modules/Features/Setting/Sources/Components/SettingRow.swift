@@ -9,70 +9,59 @@ import DesignSystem
 import Foundation
 import SwiftUI
 
-enum SettingRowType {
-    case privacyPolicy
-    case termsOfService
-    case talkToDeveloper
-}
+/// 아이콘, 제목, 오른쪽 요소로 이루어진 설정 한 줄.
+/// 레이아웃만 맡는다. 토글·탭 같은 동작은 호출하는 쪽에서 `accessory`나 감싸는 `Button`으로 붙인다.
+struct SettingRow<Accessory: View>: View {
+    private let type: SettingMenuType
+    private let accessory: Accessory
 
-extension SettingRowType {
-    var icon: Image {
-        switch self {
-        case .privacyPolicy: return Image(systemName: "figure.2")
-        case .termsOfService: return Image(systemName: "book.circle")
-        case .talkToDeveloper: return Image(systemName: "paperplane.fill")
-        }
+    init(type: SettingMenuType, @ViewBuilder accessory: () -> Accessory) {
+        self.type = type
+        self.accessory = accessory()
     }
-
-    var title: String {
-        switch self {
-        case .privacyPolicy: return "Privacy Policy"
-        case .termsOfService: return "Terms of Service"
-        case .talkToDeveloper: return "Talk to Developer"
-        }
-    }
-}
-
-struct SettingRow: View {
-    let type: SettingRowType
-    let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                type.icon
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
-                    .background(
-                        Color(red: 118 / 255, green: 118 / 255, blue: 128 / 255, opacity: 0.3),
-                        in: .rect(cornerRadius: 8)
-                    )
-                    .accessibilityHidden(true)
+        HStack(spacing: 10) {
+            type.icon
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 40, height: 40)
+                .background(
+                    Color(red: 118 / 255, green: 118 / 255, blue: 128 / 255, opacity: 0.3),
+                    in: .rect(cornerRadius: 8)
+                )
+                .accessibilityHidden(true)
 
-                Text(type.title)
-                    .font(.body.bold())
-                    .tracking(-0.08)
-                    .foregroundStyle(.white)
+            Text(type.title)
+                .font(.system(size: 17, weight: .semibold))
+                .tracking(-0.08)
+                .foregroundStyle(.white)
 
-                Spacer()
+            Spacer()
 
-                Image(systemName: "chevron.right")
-                    .frame(width: 13, height: 10)
-                    .foregroundStyle(.white)
-                    .accessibilityHidden(true)
-            }
-            .contentShape(.rect)
+            accessory
         }
-        .buttonStyle(.plain)
+        .contentShape(.rect)
+        .accessibilityElement(children: .combine)
     }
 }
 
 #Preview {
+    @Previewable @State var isOn = true
+
     VStack(spacing: 16) {
-        SettingRow(type: .privacyPolicy) {}
-        SettingRow(type: .termsOfService) {}
-        SettingRow(type: .talkToDeveloper) {}
+        SettingRow(type: .device(.sound)) {
+            CommonToggle(isOn: $isOn)
+        }
+
+        Button {} label: {
+            SettingRow(type: .aboutUs(.privacyPolicy)) {
+                Image(systemName: "chevron.right")
+                    .foregroundStyle(.white)
+                    .accessibilityHidden(true)
+            }
+        }
+        .buttonStyle(.plain)
     }
     .padding()
     .background(Color.black)
