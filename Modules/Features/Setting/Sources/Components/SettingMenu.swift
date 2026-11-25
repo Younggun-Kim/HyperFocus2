@@ -22,7 +22,7 @@ struct SettingMenu<Accessory: View>: View {
         HStack(spacing: 10) {
             type.icon
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
                 .frame(width: 40, height: 40)
                 .background(
                     DesignSystemAsset.Colors.systemLightGray.swiftUIColor,
@@ -33,7 +33,7 @@ struct SettingMenu<Accessory: View>: View {
             Text(type.title)
                 .font(.system(size: 17, weight: .semibold))
                 .tracking(-0.08)
-                .foregroundStyle(.white)
+                .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
             
             Spacer()
             
@@ -62,5 +62,5 @@ struct SettingMenu<Accessory: View>: View {
         .buttonStyle(.plain)
     }
     .padding()
-    .background(Color.black)
+    .background(.white)
 }

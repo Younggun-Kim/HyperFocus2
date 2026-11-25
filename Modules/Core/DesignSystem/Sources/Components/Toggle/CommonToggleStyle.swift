@@ -13,13 +13,13 @@ struct CommonToggleStyle: ToggleStyle {
         Capsule()
             .fill(
                 configuration.isOn
-                ? Color(red: 60 / 255, green: 211 / 255, blue: 254 / 255)
-                : Color(red: 120 / 255, green: 120 / 255, blue: 128 / 255, opacity: 0.32)
+                ? DesignSystemAsset.Colors.systemBlue.swiftUIColor
+                : DesignSystemAsset.Colors.labelVibrantTertiary.swiftUIColor
             )
             .frame(width: 64, height: 28)
             .overlay(alignment: configuration.isOn ? .trailing : .leading) {
                 Capsule()
-                    .fill(Color.black)
+                    .fill(DesignSystemAsset.Colors.bgPrimary.swiftUIColor)
                     .frame(width: 39, height: 24)
                     .padding(2)
             }

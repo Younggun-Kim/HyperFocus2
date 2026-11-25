@@ -7,7 +7,6 @@ import ComposableArchitecture
 import Domain
 import Foundation
 
-/// Talk to Developer 시트. SettingFeature가 Destination으로 띄우고 `delegate(.sent)`를 받아 닫는다.
 @Reducer
 public struct FeedbackFeature {
     @ObservableState
@@ -19,7 +18,6 @@ public struct FeedbackFeature {
         var isSending: Bool
         @Presents var alert: AlertState<Action.Alert>?
 
-        /// 공백만 있거나 전송 중이면 보낼 수 없다.
         var canSend: Bool {
             !isSending && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }

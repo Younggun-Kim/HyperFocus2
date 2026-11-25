@@ -18,19 +18,23 @@ public struct SettingView: View {
                     }
                 }
             }
-
+            
             Rectangle()
                 .fill(DesignSystemAsset.Colors.systemLightGray.swiftUIColor)
                 .frame(height: 1)
             
-            VStack(spacing: 16) {
+            VStack(alignment: .leading,spacing: 16) {
+                Text("About Us")
+                    .font(.caption)
+                    .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
+                
                 ForEach(SettingMenuType.AboutUs.allCases, id: \.self) { item in
                     Button {
                         store.send(.aboutUsTapped(item))
                     } label: {
                         SettingMenu(type: .aboutUs(item)) {
                             Image(systemName: "chevron.right")
-                                .foregroundStyle(.white)
+                                .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
                                 .accessibilityHidden(true)
                         }
                     }
@@ -42,7 +46,7 @@ public struct SettingView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.ignoresSafeArea())
+        .background(DesignSystemAsset.Colors.bgPrimary.swiftUIColor.ignoresSafeArea())
         .sheet(isPresented: webPageBinding) {
             if let url = store.destination?.webPage {
                 WebPageView(url: url)
@@ -51,13 +55,16 @@ public struct SettingView: View {
                     .presentationDetents([.large])
             }
         }
-        .sheet(item: $store.scope(state: \.destination?.feedback, action: \.destination.feedback)) { feedbackStore in
+        .sheet(item: $store.scope(
+            state: \.destination?.feedback,
+            action: \.destination.feedback)
+        ) { feedbackStore in
             FeedbackView(store: feedbackStore)
                 .presentationDragIndicator(.visible)
                 .presentationDetents([.large])
         }
     }
-
+    
     /// 웹 페이지 케이스는 리듀서가 없어 scope로 바인딩할 수 없으므로 직접 만든다.
     private var webPageBinding: Binding<Bool> {
         Binding(

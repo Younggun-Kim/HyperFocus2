@@ -65,7 +65,7 @@ struct FeedbackView: View {
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, minHeight: 48)
-            .background(Color.cyan, in: .capsule)
+            .background(DesignSystemAsset.Colors.systemBlue.swiftUIColor, in: .capsule)
         }
         .disabled(!store.canSend)
         .opacity(store.canSend || store.isSending ? 1 : 0.4)
@@ -98,7 +98,7 @@ struct FeedbackView: View {
                 .autocorrectionDisabled()
                 .scrollContentBackground(.hidden)
                 .font(.title)
-                .foregroundStyle(Color.cyan)
+                .foregroundStyle(DesignSystemAsset.Colors.systemBlue.swiftUIColor)
                 .padding(20)
 
             if store.text.isEmpty {
