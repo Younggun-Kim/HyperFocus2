@@ -34,4 +34,16 @@ struct SettingMenuTypeTests {
 
         #expect(Set(titles).count == titles.count)
     }
+
+    @Test(arguments: [
+        (SettingMenuType.AboutUs.privacyPolicy, "https://hyperfocus.meetory.io/privacy.html"),
+        (.termsOfService, "https://hyperfocus.meetory.io/service.html"),
+    ])
+    func 문서_항목은_웹_페이지_주소를_가진다(item: SettingMenuType.AboutUs, expected: String) {
+        #expect(item.url?.absoluteString == expected)
+    }
+
+    @Test func Talk_to_Developer는_웹_페이지_주소가_없다() {
+        #expect(SettingMenuType.AboutUs.talkToDeveloper.url == nil)
+    }
 }
