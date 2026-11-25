@@ -47,7 +47,7 @@ extension SettingMenuType.DeviceSetting {
     var icon: Image {
         switch self {
         case .sound: return Image(systemName: "speaker.wave.2.fill")
-        case .haptic: return DesignSystemAsset.icPhoneWaves.swiftUIImage
+        case .haptic: return DesignSystemAsset.Assets.icPhoneWaves.swiftUIImage
         case .alarm: return Image(systemName: "alarm")
         }
     }

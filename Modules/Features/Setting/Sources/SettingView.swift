@@ -20,7 +20,7 @@ public struct SettingView: View {
             }
 
             Rectangle()
-                .fill(Color.systemLightGray)
+                .fill(DesignSystemAsset.Colors.systemLightGray.swiftUIColor)
                 .frame(height: 1)
             
             VStack(spacing: 16) {

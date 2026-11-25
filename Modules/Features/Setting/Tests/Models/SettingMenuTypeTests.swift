@@ -18,7 +18,7 @@ struct SettingMenuTypeTests {
 
     @Test(arguments: [
         (SettingMenuType.device(.sound), Image(systemName: "speaker.wave.2.fill")),
-        (.device(.haptic), DesignSystemAsset.icPhoneWaves.swiftUIImage),
+        (.device(.haptic), DesignSystemAsset.Assets.icPhoneWaves.swiftUIImage),
         (.device(.alarm), Image(systemName: "alarm")),
         (.aboutUs(.privacyPolicy), Image(systemName: "figure.2")),
         (.aboutUs(.termsOfService), Image(systemName: "book.circle")),
