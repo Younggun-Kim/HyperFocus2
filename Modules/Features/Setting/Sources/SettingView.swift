@@ -1,4 +1,5 @@
 import ComposableArchitecture
+import DesignSystem
 import SwiftUI
 
 public struct SettingView: View {
@@ -9,12 +10,35 @@ public struct SettingView: View {
     }
     
     public var body: some View {
-        VStack {
+        VStack(spacing: 20) {
             VStack(spacing: 16) {
-                DeviceSettingItem(type: .sound, isOn: binding(.sound, store.soundOn))
-                DeviceSettingItem(type: .haptic, isOn: binding(.haptic, store.hapticOn))
-                DeviceSettingItem(type: .alarm, isOn: binding(.alarm, store.alarmOn))
+                ForEach(SettingMenuType.DeviceSetting.allCases, id: \.self) { item in
+                    SettingMenu(type: .device(item)) {
+                        CommonToggle(isOn: binding(item))
+                    }
+                }
             }
+
+            Rectangle()
+                .fill(DesignSystemAsset.Colors.systemLightGray.swiftUIColor)
+                .frame(height: 1)
+            
+            VStack(spacing: 16) {
+                ForEach(SettingMenuType.AboutUs.allCases, id: \.self) { item in
+                    Button {
+                        store.send(.aboutUsTapped(item))
+                    } label: {
+                        SettingMenu(type: .aboutUs(item)) {
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.white)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            
+            Spacer()
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -22,9 +46,15 @@ public struct SettingView: View {
     }
     
     /// 읽기는 store 값, 쓰기는 `deviceSettingChanged` 액션으로 보내는 바인딩.
-    private func binding(_ type: DeviceSettingItemType, _ value: Bool) -> Binding<Bool> {
+    private func binding(_ type: SettingMenuType.DeviceSetting) -> Binding<Bool> {
         Binding(
-            get: { value },
+            get: {
+                switch type {
+                case .sound: store.soundOn
+                case .haptic: store.hapticOn
+                case .alarm: store.alarmOn
+                }
+            },
             set: { store.send(.deviceSettingChanged(type: type, isOn: $0)) }
         )
     }

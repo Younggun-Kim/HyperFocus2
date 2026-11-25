@@ -41,7 +41,7 @@ public struct SessionLogHomeView: View {
             Button {
                 store.send(.settingButtonTapped)
             } label: {
-                DesignSystemAsset.icGear.swiftUIImage
+                DesignSystemAsset.Assets.icGear.swiftUIImage
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Setting")
