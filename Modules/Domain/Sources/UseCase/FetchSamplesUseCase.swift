@@ -4,7 +4,7 @@ import DependenciesMacros
 /// 기록 목록을 불러온다.
 @DependencyClient
 public struct FetchSamplesUseCase: Sendable {
-    public var execute: @Sendable () async throws -> [Sample]
+    public var execute: @Sendable () async -> Result<[Sample], DomainError> = { .failure(.unknown) }
 }
 
 extension DependencyValues {
@@ -20,7 +20,7 @@ extension FetchSamplesUseCase: DependencyKey {
     public static let liveValue = Self(
         execute: {
             @Dependency(\.sampleRepository) var sampleRepository
-            return try await sampleRepository.fetchSamples()
+            return await sampleRepository.fetchSamples()
         }
     )
     public static let testValue = Self()

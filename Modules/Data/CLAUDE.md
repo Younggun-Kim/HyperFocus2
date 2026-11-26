@@ -20,8 +20,8 @@ Domain의 Repository 포트를 구현하는 모듈. App만 링크한다. 공통 
 
 ## 에러
 
-- `APIError`와 SwiftData 에러를 **Domain 에러로 변환**해서 던진다. 아래 계층의 에러 타입을 그대로 올려 보내지 않는다.
-- 변환하기 **전에** 원본을 `os.Logger`로 로깅한다(category `Data`). 통신 결과에 `orThrowDomainError(_:)`를 부르면 둘 다 처리된다. 취소는 `CancellationError`로 올린다. `Result`는 Data 안에서 끝낸다. Repository 포트는 `async throws`다. 토큰과 사용자 데이터에 `privacy: .public`을 붙이지 않는다.
+- `APIError`와 SwiftData 에러를 **Domain 에러로 변환**해서 `Result`의 실패로 돌려준다. 아래 계층의 에러 타입을 그대로 올려 보내지 않는다.
+- 변환하기 **전에** 원본을 `os.Logger`로 로깅한다(category `Data`). 통신 결과에 `domainResult(_:)`를 부르면 둘 다 처리된다. 취소는 로깅하지 않고 `DomainError.cancelled`로 올린다. 토큰과 사용자 데이터에 `privacy: .public`을 붙이지 않는다.
 
 ## SwiftData
 

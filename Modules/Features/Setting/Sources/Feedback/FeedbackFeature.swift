@@ -74,13 +74,10 @@ public struct FeedbackFeature {
                 guard state.canSend else { return .none }
                 state.isSending = true
                 return .run { [category = state.category, content = state.text] send in
-                    do {
-                        try await sendFeedbackUseCase.execute(category, content)
-                        await send(.sendSucceeded)
-                    } catch is CancellationError {
-                        // 시트가 닫혀 취소된 경우. 알릴 대상이 없다.
-                    } catch {
-                        await send(.sendFailed(error as? DomainError ?? .unknown))
+                    // 시트가 닫혀 취소되면 `send`가 액션을 버린다. 알릴 대상이 없다.
+                    switch await sendFeedbackUseCase.execute(category, content) {
+                    case .success: await send(.sendSucceeded)
+                    case .failure(let error): await send(.sendFailed(error))
                     }
                 }
 
@@ -102,17 +99,24 @@ public struct FeedbackFeature {
 }
 
 extension AlertState where Action == FeedbackFeature.Action.Alert {
-    /// Domain 에러를 사용자 문구로 바꾼다. 입력한 내용은 그대로 두므로 다시 보내면 된다.
-    static func sendFailure(_ error: DomainError) -> Self {
-        AlertState {
+    /// Domain 에러를 사용자 문구로 바꾼다. 취소면 알리지 않으므로 nil.
+    /// 입력한 내용은 그대로 두므로 다시 보내면 된다.
+    static func sendFailure(_ error: DomainError) -> Self? {
+        let message: String
+        switch error {
+        case .cancelled:
+            return nil
+        case .offline:
+            message = "Please check your internet connection."
+        case .unauthorized, .notFound, .invalid, .conflict, .unknown:
+            message = "Please try again in a moment."
+        }
+        return AlertState {
             TextState("Failed to send feedback.")
         } actions: {
             ButtonState(role: .cancel) { TextState("OK") }
         } message: {
-            switch error {
-            case .offline: TextState("Please check your internet connection.")
-            case .unauthorized, .notFound, .invalid, .conflict, .unknown: TextState("Please try again in a moment.")
-            }
+            TextState(message)
         }
     }
 }

@@ -18,25 +18,25 @@ extension DomainError {
             case 409: self = .conflict
             default: self = .unknown
             }
-        case .decodingError, .unknown, .cancelled:
+        case .cancelled:
+            self = .cancelled
+        case .decodingError, .unknown:
             self = .unknown
         }
     }
 }
 
 extension Result where Failure == APIError {
-    /// 성공 값을 꺼낸다. 실패면 원본을 로깅한 뒤 Domain 에러로 바꿔 던진다.
+    /// 실패를 Domain 에러로 바꾼다. 바꾸기 전에 원본을 로깅한다.
     ///
-    /// 취소는 에러가 아니라 흐름이다. `APIError.cancelled`는 `CancellationError`로 바꿔 Feature가 무시하게 한다.
-    func orThrowDomainError(_ operation: String) throws -> Success {
-        switch self {
-        case .success(let value):
-            return value
-        case .failure(.cancelled):
-            throw CancellationError()
-        case .failure(let error):
-            Logger.data.error("\(operation) 실패: \(String(describing: error))")
-            throw DomainError(error)
+    /// 취소는 실패가 아니라 흐름이라 로깅하지 않는다.
+    func domainResult(_ operation: String) -> Result<Success, DomainError> {
+        mapError { error in
+            let domainError = DomainError(error)
+            if domainError != .cancelled {
+                Logger.data.error("\(operation) 실패: \(String(describing: error))")
+            }
+            return domainError
         }
     }
 }

@@ -5,7 +5,7 @@ import DependenciesMacros
 /// Feature는 이 타입을 직접 쓰지 않고 `SendFeedbackUseCase`를 통해서만 접근한다.
 @DependencyClient
 public struct FeedbackRepository: Sendable {
-    public var sendFeedback: @Sendable (_ category: FeedbackCategory, _ content: String) async throws -> Void
+    public var sendFeedback: @Sendable (_ category: FeedbackCategory, _ content: String) async -> Result<Void, DomainError> = { _, _ in .failure(.unknown) }
 }
 
 extension DependencyValues {
@@ -18,6 +18,6 @@ extension DependencyValues {
 extension FeedbackRepository: TestDependencyKey {
     public static let testValue = Self()
     public static let previewValue = Self(
-        sendFeedback: { _, _ in }
+        sendFeedback: { _, _ in .success(()) }
     )
 }

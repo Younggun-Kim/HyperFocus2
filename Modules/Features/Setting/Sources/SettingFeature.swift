@@ -62,11 +62,9 @@ public struct SettingFeature {
             switch action {
             case .onAppear:
                 return .run { send in
-                    do {
-                        await send(.settingLoaded(try await fetchSettingUseCase.execute()))
-                    } catch is CancellationError {
-                    } catch {
-                        await send(.settingLoadFailed(error as? DomainError ?? .unknown))
+                    switch await fetchSettingUseCase.execute() {
+                    case .success(let setting): await send(.settingLoaded(setting))
+                    case .failure(let error): await send(.settingLoadFailed(error))
                     }
                 }
                 .cancellable(id: CancelID.load, cancelInFlight: true)
@@ -79,11 +77,9 @@ public struct SettingFeature {
                 return .merge(
                     .cancel(id: CancelID.load),
                     .run { [setting = state.setting] send in
-                        do {
-                            await send(.settingSaved(try await updateSettingUseCase.execute(setting)))
-                        } catch is CancellationError {
-                        } catch {
-                            await send(.settingSaveFailed(error as? DomainError ?? .unknown))
+                        switch await updateSettingUseCase.execute(setting) {
+                        case .success(let saved): await send(.settingSaved(saved))
+                        case .failure(let error): await send(.settingSaveFailed(error))
                         }
                     }
                     .cancellable(id: CancelID.save, cancelInFlight: true)
@@ -124,17 +120,14 @@ public struct SettingFeature {
                     guard !state.isSigningIn else { return .none }
                     guard let request = credential.signInRequest else {
                         Logger.setting.error("Apple 로그인 실패: 서버에 보낼 토큰이나 코드가 없다")
-                        state.destination = .alert(.appleSignInFailure(.unknown))
+                        state.destination = AlertState.appleSignInFailure(.unknown).map(Destination.State.alert)
                         return .none
                     }
                     state.isSigningIn = true
                     return .run { send in
-                        do {
-                            try await signInWithAppleUseCase.execute(request)
-                            await send(.appleSignInSucceeded)
-                        } catch is CancellationError {
-                        } catch {
-                            await send(.appleSignInFailed(error as? DomainError ?? .unknown))
+                        switch await signInWithAppleUseCase.execute(request) {
+                        case .success: await send(.appleSignInSucceeded)
+                        case .failure(let error): await send(.appleSignInFailed(error))
                         }
                     }
                     .cancellable(id: CancelID.signIn, cancelInFlight: true)
@@ -145,7 +138,7 @@ public struct SettingFeature {
 
                 case let .failed(code):
                     Logger.setting.error("Apple 로그인 실패: code \(code)")
-                    state.destination = .alert(.appleSignInFailure(.unknown))
+                    state.destination = AlertState.appleSignInFailure(.unknown).map(Destination.State.alert)
                     return .none
                 }
 
@@ -157,7 +150,8 @@ public struct SettingFeature {
 
             case let .appleSignInFailed(error):
                 state.isSigningIn = false
-                state.destination = .alert(.appleSignInFailure(error))
+                guard let alert = AlertState.appleSignInFailure(error) else { return .none }
+                state.destination = .alert(alert)
                 return .none
 
             case .destination(.presented(.feedback(.delegate(.sent)))):
@@ -196,17 +190,24 @@ extension AppSetting {
 }
 
 extension AlertState where Action == Never {
-    /// Apple 로그인 실패 문구. 로그인 중의 `unauthorized`는 세션 만료가 아니라 서버가 Apple 자격 증명을 거절한 것이므로 알린다.
-    static func appleSignInFailure(_ error: DomainError) -> Self {
-        AlertState {
+    /// Apple 로그인 실패 문구. 취소면 알리지 않으므로 nil.
+    /// 로그인 중의 `unauthorized`는 세션 만료가 아니라 서버가 Apple 자격 증명을 거절한 것이므로 알린다.
+    static func appleSignInFailure(_ error: DomainError) -> Self? {
+        let message: String
+        switch error {
+        case .cancelled:
+            return nil
+        case .offline:
+            message = "Please check your internet connection."
+        case .unauthorized, .notFound, .invalid, .conflict, .unknown:
+            message = "Please try again in a moment."
+        }
+        return AlertState {
             TextState("Couldn't sign in with Apple.")
         } actions: {
             ButtonState(role: .cancel) { TextState("OK") }
         } message: {
-            switch error {
-            case .offline: TextState("Please check your internet connection.")
-            case .unauthorized, .notFound, .invalid, .conflict, .unknown: TextState("Please try again in a moment.")
-            }
+            TextState(message)
         }
     }
 
@@ -219,8 +220,8 @@ extension AlertState where Action == Never {
     static func settingFailure(_ error: DomainError, action: SettingAction) -> Self? {
         let message: String
         switch error {
-        case .unauthorized, .notFound:
-            // 인증은 앱 전역에서 처리하고, 저장된 설정이 없으면 기본값을 쓰면 된다.
+        case .unauthorized, .notFound, .cancelled:
+            // 인증은 앱 전역에서 처리하고, 저장된 설정이 없으면 기본값을 쓰면 된다. 취소는 알리지 않는다.
             return nil
         case .offline:
             message = "Please check your internet connection."

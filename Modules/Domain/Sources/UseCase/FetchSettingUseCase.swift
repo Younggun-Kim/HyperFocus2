@@ -4,7 +4,7 @@ import DependenciesMacros
 /// 저장된 기기 설정을 불러온다.
 @DependencyClient
 public struct FetchSettingUseCase: Sendable {
-    public var execute: @Sendable () async throws -> AppSetting
+    public var execute: @Sendable () async -> Result<AppSetting, DomainError> = { .failure(.unknown) }
 }
 
 extension DependencyValues {
@@ -20,7 +20,7 @@ extension FetchSettingUseCase: DependencyKey {
     public static let liveValue = Self(
         execute: {
             @Dependency(\.settingRepository) var settingRepository
-            return try await settingRepository.fetchSetting()
+            return await settingRepository.fetchSetting()
         }
     )
     public static let testValue = Self()

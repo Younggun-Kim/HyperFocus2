@@ -14,17 +14,17 @@ struct EnsureSignedInUseCaseTests {
     /// 호출된 Repository 메서드 이름을 순서대로 남긴다.
     private func repository(
         hasToken: Bool,
-        signInAnonymously: @escaping @Sendable () throws -> Void = {},
+        signInAnonymously: Result<Void, DomainError> = .success(()),
         calls: LockIsolated<[String]>
     ) -> AuthRepository {
         AuthRepository(
             hasToken: { hasToken },
             signInAnonymously: {
                 calls.withValue { $0.append("anonymous") }
-                try signInAnonymously()
+                return signInAnonymously
             },
-            linkApple: { _ in },
-            signInWithApple: { _ in }
+            linkApple: { _ in .success(()) },
+            signInWithApple: { _ in .success(()) }
         )
     }
     
@@ -36,7 +36,7 @@ struct EnsureSignedInUseCaseTests {
         try await withDependencies {
             $0.authRepository = repository(hasToken: true, calls: calls)
         } operation: {
-            try await EnsureSignedInUseCase.liveValue.execute()
+            try await EnsureSignedInUseCase.liveValue.execute().get()
         }
         
         // Then
@@ -51,7 +51,7 @@ struct EnsureSignedInUseCaseTests {
         try await withDependencies {
             $0.authRepository = repository(hasToken: false, calls: calls)
         } operation: {
-            try await EnsureSignedInUseCase.liveValue.execute()
+            try await EnsureSignedInUseCase.liveValue.execute().get()
         }
         
         // Then
@@ -67,13 +67,11 @@ struct EnsureSignedInUseCaseTests {
             try await withDependencies {
                 $0.authRepository = repository(
                     hasToken: false,
-                    signInAnonymously: {
-                        throw DomainError.offline
-                    },
+                    signInAnonymously: .failure(.offline),
                     calls: calls
                 )
             } operation: {
-                try await EnsureSignedInUseCase.liveValue.execute()
+                try await EnsureSignedInUseCase.liveValue.execute().get()
             }
         }
         

@@ -9,11 +9,11 @@ public struct AuthRepository: Sendable {
     /// 저장된 토큰(익명 포함)이 있는지
     public var hasToken: @Sendable () -> Bool = { false }
     /// 기기 식별자로 익명 계정을 만들거나 다시 받는다.
-    public var signInAnonymously: @Sendable () async throws -> Void
+    public var signInAnonymously: @Sendable () async -> Result<Void, DomainError> = { .failure(.unknown) }
     /// 지금 계정(익명)에 Apple 계정을 연동한다. 이미 다른 계정에 연동된 Apple 계정이면 `DomainError.conflict`.
-    public var linkApple: @Sendable (_ request: AppleSignInRequest) async throws -> Void
+    public var linkApple: @Sendable (_ request: AppleSignInRequest) async -> Result<Void, DomainError> = { _ in .failure(.unknown) }
     /// 이미 연동된 Apple 계정으로 로그인한다.
-    public var signInWithApple: @Sendable (_ request: AppleSignInRequest) async throws -> Void
+    public var signInWithApple: @Sendable (_ request: AppleSignInRequest) async -> Result<Void, DomainError> = { _ in .failure(.unknown) }
 }
 
 extension DependencyValues {
@@ -27,8 +27,8 @@ extension AuthRepository: TestDependencyKey {
     public static let testValue = Self()
     public static let previewValue = Self(
         hasToken: { true },
-        signInAnonymously: {},
-        linkApple: { _ in },
-        signInWithApple: { _ in }
+        signInAnonymously: { .success(()) },
+        linkApple: { _ in .success(()) },
+        signInWithApple: { _ in .success(()) }
     )
 }

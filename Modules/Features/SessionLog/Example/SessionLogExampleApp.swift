@@ -10,7 +10,7 @@ struct SessionLogExampleApp: App {
         // Repository 포트에 mock을 넣으면 UseCase는 실제 로직(liveValue)대로 동작한다.
         prepareDependencies {
             $0.sampleRepository.fetchSamples = {
-                [Sample(id: "example-1"), Sample(id: "example-2"), Sample(id: "example-3")]
+                .success([Sample(id: "example-1"), Sample(id: "example-2"), Sample(id: "example-3")])
             }
         }
     }

@@ -8,9 +8,9 @@ struct SettingUseCaseTests {
 
     @Test func 설정을_불러오면_저장소의_값을_돌려준다() async throws {
         let setting = try await withDependencies {
-            $0.settingRepository.fetchSetting = { [stored] in stored }
+            $0.settingRepository.fetchSetting = { [stored] in .success(stored) }
         } operation: {
-            try await FetchSettingUseCase.liveValue.execute()
+            try await FetchSettingUseCase.liveValue.execute().get()
         }
 
         #expect(setting == stored)
@@ -23,22 +23,22 @@ struct SettingUseCaseTests {
         let setting = try await withDependencies {
             $0.settingRepository.updateSetting = { setting in
                 received.setValue(setting)
-                return confirmed
+                return .success(confirmed)
             }
         } operation: {
-            try await UpdateSettingUseCase.liveValue.execute(stored)
+            try await UpdateSettingUseCase.liveValue.execute(stored).get()
         }
 
         #expect(received.value == stored)
         #expect(setting == confirmed)
     }
 
-    @Test func 저장소의_Domain_에러를_그대로_던진다() async {
+    @Test func 저장소의_Domain_에러를_그대로_돌려준다() async {
         await #expect(throws: DomainError.offline) {
             try await withDependencies {
-                $0.settingRepository.fetchSetting = { throw DomainError.offline }
+                $0.settingRepository.fetchSetting = { .failure(.offline) }
             } operation: {
-                try await FetchSettingUseCase.liveValue.execute()
+                try await FetchSettingUseCase.liveValue.execute().get()
             }
         }
     }
@@ -47,9 +47,12 @@ struct SettingUseCaseTests {
         let received = LockIsolated<(FeedbackCategory, String)?>(nil)
 
         try await withDependencies {
-            $0.feedbackRepository.sendFeedback = { received.setValue(($0, $1)) }
+            $0.feedbackRepository.sendFeedback = {
+                received.setValue(($0, $1))
+                return .success(())
+            }
         } operation: {
-            try await SendFeedbackUseCase.liveValue.execute(.bugReport, "버그")
+            try await SendFeedbackUseCase.liveValue.execute(.bugReport, "버그").get()
         }
 
         #expect(received.value?.0 == .bugReport)
