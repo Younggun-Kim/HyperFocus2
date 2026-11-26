@@ -2,12 +2,36 @@ import ComposableArchitecture
 import FocusTimer
 import SessionLog
 import Setting
+import Splash
 import SwiftUI
 
 struct RootView: View {
     @Bindable var store: StoreOf<RootFeature>
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
+        ZStack {
+            // 메인은 스플래시가 끝난 뒤에 만든다. 미리 만들면 자식 화면의 요청이 로그인 확인보다 먼저 나간다.
+            if store.isLaunching {
+                SplashView(store: store.scope(state: \.splash, action: \.splash))
+                    .transition(.opacity)
+            } else {
+                main
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: store.isLaunching)
+        .onAppear {
+            store.send(.onAppear)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                store.send(.sceneActivated)
+            }
+        }
+    }
+
+    private var main: some View {
         TabView {
             Tab("타이머", systemImage: "timer") {
                 FocusHomeView(store: store.scope(state: \.timer, action: \.timer))
