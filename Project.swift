@@ -96,6 +96,10 @@ let project = Project(
             .target(name: "DesignSystem"),
         ],
     )
+    + Target.feature(
+        name: "Splash",
+        dependencies: [.target(name: "DesignSystem")]
+    )
     + [
         // MARK: - Domain
         // 내부 모듈에 의존하지 않는다. Entity, Repository 포트, UseCase
