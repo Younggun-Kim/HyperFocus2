@@ -28,6 +28,7 @@ let project = Project(
             ],
             entitlements: .dictionary([
                 "com.apple.security.application-groups": ["$(APP_GROUP_ID)"],
+                "com.apple.developer.applesignin": ["Default"],
             ]),
             dependencies: [
                 .target(name: "FocusTimer"),

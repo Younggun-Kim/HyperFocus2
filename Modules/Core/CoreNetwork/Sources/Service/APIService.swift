@@ -40,14 +40,16 @@ public struct APIService: APIServiceProtocol, @unchecked Sendable {
         self.init(
             baseURL: baseURL,
             provider: MoyaProvider(
-                session: Session(configuration: configuration, startRequestsImmediately: false)
+                session: Session(configuration: configuration, startRequestsImmediately: false),
+                plugins: [NetworkLoggingPlugin()]
             ),
             authProvider: MoyaProvider(
                 session: Session(
                     configuration: configuration,
                     startRequestsImmediately: false,
                     interceptor: tokenManager.interceptor
-                )
+                ),
+                plugins: [NetworkLoggingPlugin()]
             )
         )
     }

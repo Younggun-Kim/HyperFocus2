@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Domain
 import Foundation
+import os
 
 @Reducer
 public struct SettingFeature {
@@ -32,6 +33,7 @@ public struct SettingFeature {
         case onAppear
         case deviceSettingChanged(type: SettingMenuType.DeviceSetting, isOn: Bool)
         case aboutUsTapped(SettingMenuType.AboutUs)
+        case appleSignInCompleted(AppleSignInResult)
         case settingLoaded(AppSetting)
         case settingLoadFailed(DomainError)
         case settingSaved(AppSetting)
@@ -104,6 +106,21 @@ public struct SettingFeature {
                 } else {
                     state.destination = .feedback(FeedbackFeature.State())
                 }
+                return .none
+
+            case let .appleSignInCompleted(result):
+                // 토큰, 사용자 식별자, email 값은 찍지 않는다. 있는지만 남긴다.
+                switch result {
+                case let .authorized(credential):
+                    Logger.setting.info(
+                        "Apple 로그인 성공: identityToken \(credential.identityToken != nil), authorizationCode \(credential.authorizationCode != nil), email \(credential.email != nil)"
+                    )
+                case .canceled:
+                    Logger.setting.debug("Apple 로그인: 사용자가 취소")
+                case let .failed(code):
+                    Logger.setting.error("Apple 로그인 실패: code \(code)")
+                }
+                // TODO: 자격 증명을 로그인 UseCase로 보낸다(계정 기능 PR).
                 return .none
 
             case .destination(.presented(.feedback(.delegate(.sent)))):

@@ -14,7 +14,8 @@ import AuthenticationServices
 struct AppleLoginView: View {
     
     var email: String?
-    
+    var onCompletion: (AppleSignInResult) -> Void = { _ in }
+
     var body: some View {
         if email == nil {
             anonymousUser
@@ -46,7 +47,9 @@ struct AppleLoginView: View {
                 onRequest: { request in
                     request.requestedScopes = [.fullName, .email]
                 },
-                onCompletion: { result in }
+                onCompletion: { result in
+                    onCompletion(AppleSignInResult(result))
+                }
             )
             .frame(maxWidth: .infinity, minHeight: 50, maxHeight: 50)
             .cornerRadius(10)
