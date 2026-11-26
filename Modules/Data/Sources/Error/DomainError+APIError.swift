@@ -14,7 +14,8 @@ extension DomainError {
             switch statusCode {
             case 401, 403: self = .unauthorized
             case 404: self = .notFound
-            case 400, 409, 422: self = .invalid
+            case 400, 422: self = .invalid
+            case 409: self = .conflict
             default: self = .unknown
             }
         case .decodingError, .unknown, .cancelled:
