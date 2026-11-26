@@ -1,8 +1,10 @@
 import CoreNetwork
 
-enum FeedbackEndpoint: APIEndpoint, Equatable {
+enum FeedbackAPI: APIEndpoint, Equatable {
     case send(FeedbackRequestDTO)
+}
 
+extension FeedbackAPI {
     var path: String { "/api/v1/feedback" }
     var method: HTTPMethod { .post }
 

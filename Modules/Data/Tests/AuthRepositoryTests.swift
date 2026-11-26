@@ -41,7 +41,7 @@ struct AuthRepositoryTests {
 
         try await repository(service, stored: stored).signInAnonymously()
 
-        let endpoint = try #require(service.endpoints.first as? AuthEndpoint)
+        let endpoint = try #require(service.endpoints.first as? AuthAPI)
         #expect(endpoint == .anonymous(AnonymousLoginRequestDTO(deviceId: "test-device")))
         #expect(endpoint.requiresAuth == false)
         #expect(stored.value == issued)
@@ -63,7 +63,7 @@ struct AuthRepositoryTests {
 
         try await repository(service, stored: stored).linkApple(request)
 
-        let endpoint = try #require(service.endpoints.first as? AuthEndpoint)
+        let endpoint = try #require(service.endpoints.first as? AuthAPI)
         #expect(endpoint == .linkApple(AppleLinkRequestDTO(
             identityToken: "test-identity-token",
             authorizationCode: "test-code",
@@ -86,7 +86,7 @@ struct AuthRepositoryTests {
 
         try await repository(service, stored: stored).signInWithApple(request)
 
-        let endpoint = try #require(service.endpoints.first as? AuthEndpoint)
+        let endpoint = try #require(service.endpoints.first as? AuthAPI)
         #expect(endpoint == .loginApple(AppleLoginRequestDTO(
             identityToken: "test-identity-token",
             name: "테스트",

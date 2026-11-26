@@ -17,7 +17,7 @@ struct FeedbackRepositoryTests {
 
         try await repository.sendFeedback(category, "의견")
 
-        let endpoint = try #require(service.endpoints.first as? FeedbackEndpoint)
+        let endpoint = try #require(service.endpoints.first as? FeedbackAPI)
         #expect(endpoint == .send(FeedbackRequestDTO(
             category: apiValue,
             content: "의견",

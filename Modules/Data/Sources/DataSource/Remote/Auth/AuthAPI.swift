@@ -1,7 +1,7 @@
 import CoreNetwork
 
 /// 인증 API. 응답은 모두 `TokenResponseDTO`다.
-enum AuthEndpoint: APIEndpoint, Equatable {
+enum AuthAPI: APIEndpoint, Equatable {
     case refresh(refreshToken: String)
     /// 기기 식별자로 익명 계정 토큰을 받는다.
     case anonymous(AnonymousLoginRequestDTO)
@@ -9,7 +9,9 @@ enum AuthEndpoint: APIEndpoint, Equatable {
     case linkApple(AppleLinkRequestDTO)
     /// 이미 연동된 Apple 계정으로 로그인한다.
     case loginApple(AppleLoginRequestDTO)
+}
 
+extension AuthAPI {
     var path: String {
         switch self {
         case .refresh: return "/api/v1/auth/refresh"

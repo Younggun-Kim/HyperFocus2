@@ -14,7 +14,7 @@ enum DataNetwork {
             refresh: { token in
                 // refresh는 요청이 401을 받은 뒤에만 불리므로, 이때 `service`는 이미 만들어져 있다.
                 let response = try await DataNetwork.service.request(
-                    AuthEndpoint.refresh(refreshToken: token.refreshToken),
+                    AuthAPI.refresh(refreshToken: token.refreshToken),
                     responseType: TokenResponseDTO.self
                 )
                 guard let data = response.data else {

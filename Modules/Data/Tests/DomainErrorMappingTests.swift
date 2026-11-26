@@ -29,6 +29,6 @@ struct DomainErrorMappingTests {
     }
 
     @Test func 토큰_갱신은_인증_없이_보낸다() {
-        #expect(AuthEndpoint.refresh(refreshToken: "refresh").requiresAuth == false)
+        #expect(AuthAPI.refresh(refreshToken: "refresh").requiresAuth == false)
     }
 }

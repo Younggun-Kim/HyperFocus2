@@ -20,7 +20,7 @@ extension AuthRepository: @retroactive DependencyKey {
         deviceID: @escaping @Sendable () async -> String?
     ) -> Self {
         /// 토큰을 받는 요청을 보내고, 받은 토큰으로 바꾼다.
-        @Sendable func issueToken(_ endpoint: AuthEndpoint, _ operation: String) async throws {
+        @Sendable func issueToken(_ endpoint: AuthAPI, _ operation: String) async throws {
             try await convertingErrors(operation) {
                 let response = try await service.request(endpoint, responseType: TokenResponseDTO.self)
                 guard let token = response.data else {
