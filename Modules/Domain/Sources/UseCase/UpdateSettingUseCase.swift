@@ -4,7 +4,7 @@ import DependenciesMacros
 /// 기기 설정을 저장하고, 서버가 확정한 값을 돌려준다.
 @DependencyClient
 public struct UpdateSettingUseCase: Sendable {
-    public var execute: @Sendable (_ setting: AppSetting) async throws -> AppSetting
+    public var execute: @Sendable (_ setting: AppSetting) async -> Result<AppSetting, DomainError> = { _ in .failure(.unknown) }
 }
 
 extension DependencyValues {
@@ -20,7 +20,7 @@ extension UpdateSettingUseCase: DependencyKey {
     public static let liveValue = Self(
         execute: { setting in
             @Dependency(\.settingRepository) var settingRepository
-            return try await settingRepository.updateSetting(setting)
+            return await settingRepository.updateSetting(setting)
         }
     )
     public static let testValue = Self()

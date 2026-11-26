@@ -4,7 +4,7 @@ import DependenciesMacros
 /// 개발자에게 피드백을 보낸다.
 @DependencyClient
 public struct SendFeedbackUseCase: Sendable {
-    public var execute: @Sendable (_ category: FeedbackCategory, _ content: String) async throws -> Void
+    public var execute: @Sendable (_ category: FeedbackCategory, _ content: String) async -> Result<Void, DomainError> = { _, _ in .failure(.unknown) }
 }
 
 extension DependencyValues {
@@ -20,7 +20,7 @@ extension SendFeedbackUseCase: DependencyKey {
     public static let liveValue = Self(
         execute: { category, content in
             @Dependency(\.feedbackRepository) var feedbackRepository
-            try await feedbackRepository.sendFeedback(category, content)
+            return await feedbackRepository.sendFeedback(category, content)
         }
     )
     public static let testValue = Self()

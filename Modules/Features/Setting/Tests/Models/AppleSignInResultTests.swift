@@ -49,7 +49,10 @@ struct SettingAppleSignInTests {
         let store = TestStore(initialState: SettingFeature.State()) {
             SettingFeature()
         } withDependencies: {
-            $0.signInWithAppleUseCase.execute = { received.setValue($0) }
+            $0.signInWithAppleUseCase.execute = {
+                received.setValue($0)
+                return .success(())
+            }
         }
 
         await store.send(.appleSignInCompleted(.authorized(credential))) {
@@ -65,7 +68,7 @@ struct SettingAppleSignInTests {
         let store = TestStore(initialState: SettingFeature.State()) {
             SettingFeature()
         } withDependencies: {
-            $0.signInWithAppleUseCase.execute = { _ in throw DomainError.offline }
+            $0.signInWithAppleUseCase.execute = { _ in .failure(.offline) }
         }
 
         await store.send(.appleSignInCompleted(.authorized(credential))) {
@@ -73,7 +76,22 @@ struct SettingAppleSignInTests {
         }
         await store.receive(.appleSignInFailed(.offline)) {
             $0.isSigningIn = false
-            $0.destination = .alert(.appleSignInFailure(.offline))
+            $0.destination = .alert(AlertState.appleSignInFailure(.offline)!)
+        }
+    }
+
+    @Test func 서버_로그인이_취소되면_알리지_않고_로그인_중만_푼다() async {
+        let store = TestStore(initialState: SettingFeature.State()) {
+            SettingFeature()
+        } withDependencies: {
+            $0.signInWithAppleUseCase.execute = { _ in .failure(.cancelled) }
+        }
+
+        await store.send(.appleSignInCompleted(.authorized(credential))) {
+            $0.isSigningIn = true
+        }
+        await store.receive(.appleSignInFailed(.cancelled)) {
+            $0.isSigningIn = false
         }
     }
 
@@ -96,7 +114,7 @@ struct SettingAppleSignInTests {
         }
 
         await store.send(.appleSignInCompleted(.authorized(noCode))) {
-            $0.destination = .alert(.appleSignInFailure(.unknown))
+            $0.destination = .alert(AlertState.appleSignInFailure(.unknown)!)
         }
     }
 
@@ -114,7 +132,7 @@ struct SettingAppleSignInTests {
         }
 
         await store.send(.appleSignInCompleted(.failed(code: ASAuthorizationError.Code.failed.rawValue))) {
-            $0.destination = .alert(.appleSignInFailure(.unknown))
+            $0.destination = .alert(AlertState.appleSignInFailure(.unknown)!)
         }
     }
 }

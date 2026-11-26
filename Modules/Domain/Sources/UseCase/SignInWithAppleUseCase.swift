@@ -10,7 +10,7 @@ import DependenciesMacros
 /// 로그인만 먼저 시도하면, 처음 쓰는 Apple 계정은 "등록되지 않은 계정"으로 막혀 가입할 수 없다.
 @DependencyClient
 public struct SignInWithAppleUseCase: Sendable {
-    public var execute: @Sendable (_ request: AppleSignInRequest) async throws -> Void
+    public var execute: @Sendable (_ request: AppleSignInRequest) async -> Result<Void, DomainError> = { _ in .failure(.unknown) }
 }
 
 extension DependencyValues {
@@ -27,13 +27,13 @@ extension SignInWithAppleUseCase: DependencyKey {
         execute: { request in
             @Dependency(\.authRepository) var authRepository
             if !authRepository.hasToken() {
-                try await authRepository.signInAnonymously()
+                if case .failure(let error) = await authRepository.signInAnonymously() {
+                    return .failure(error)
+                }
             }
-            do {
-                try await authRepository.linkApple(request)
-            } catch DomainError.conflict {
-                try await authRepository.signInWithApple(request)
-            }
+            let linked = await authRepository.linkApple(request)
+            guard case .failure(.conflict) = linked else { return linked }
+            return await authRepository.signInWithApple(request)
         }
     )
     public static let testValue = Self()

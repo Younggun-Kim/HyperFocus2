@@ -13,7 +13,7 @@ struct SettingFeatureTests {
         let store = TestStore(initialState: SettingFeature.State()) {
             SettingFeature()
         } withDependencies: {
-            $0.fetchSettingUseCase.execute = { [stored] in stored }
+            $0.fetchSettingUseCase.execute = { [stored] in .success(stored) }
         }
 
         await store.send(.onAppear)
@@ -27,7 +27,7 @@ struct SettingFeatureTests {
         let store = TestStore(initialState: SettingFeature.State()) {
             SettingFeature()
         } withDependencies: {
-            $0.fetchSettingUseCase.execute = { throw DomainError.offline }
+            $0.fetchSettingUseCase.execute = { .failure(.offline) }
         }
 
         await store.send(.onAppear)
@@ -37,26 +37,16 @@ struct SettingFeatureTests {
         #expect(store.state.setting == .default)
     }
 
-    @Test(arguments: [DomainError.unauthorized, .notFound])
-    func 인증_문제나_저장된_값이_없으면_알리지_않는다(error: DomainError) async {
+    @Test(arguments: [DomainError.unauthorized, .notFound, .cancelled])
+    func 인증_문제나_저장된_값이_없거나_취소되면_알리지_않는다(error: DomainError) async {
         let store = TestStore(initialState: SettingFeature.State()) {
             SettingFeature()
         } withDependencies: {
-            $0.fetchSettingUseCase.execute = { throw error }
+            $0.fetchSettingUseCase.execute = { .failure(error) }
         }
 
         await store.send(.onAppear)
         await store.receive(.settingLoadFailed(error))
-    }
-
-    @Test func 조회가_취소되면_아무것도_하지_않는다() async {
-        let store = TestStore(initialState: SettingFeature.State()) {
-            SettingFeature()
-        } withDependencies: {
-            $0.fetchSettingUseCase.execute = { throw CancellationError() }
-        }
-
-        await store.send(.onAppear)
     }
 
     // MARK: - 변경
@@ -68,7 +58,7 @@ struct SettingFeatureTests {
         } withDependencies: {
             $0.updateSettingUseCase.execute = { setting in
                 saved.setValue(setting)
-                return setting
+                return .success(setting)
             }
         }
         var expected = stored
@@ -88,7 +78,7 @@ struct SettingFeatureTests {
         let store = TestStore(initialState: SettingFeature.State()) {
             SettingFeature()
         } withDependencies: {
-            $0.updateSettingUseCase.execute = { $0 }
+            $0.updateSettingUseCase.execute = { .success($0) }
         }
         var expected = AppSetting.default
         expected[type] = true
@@ -113,7 +103,7 @@ struct SettingFeatureTests {
         let store = TestStore(initialState: SettingFeature.State(setting: stored)) {
             SettingFeature()
         } withDependencies: {
-            $0.updateSettingUseCase.execute = { _ in throw DomainError.unknown }
+            $0.updateSettingUseCase.execute = { _ in .failure(.unknown) }
         }
 
         await store.send(.deviceSettingChanged(type: .alarm, isOn: false)) {
@@ -131,8 +121,8 @@ struct SettingFeatureTests {
             SettingFeature()
         } withDependencies: {
             $0.updateSettingUseCase.execute = { setting in
-                try await clock.sleep(for: .seconds(1))
-                return setting
+                try? await clock.sleep(for: .seconds(1))
+                return .success(setting)
             }
         }
         let soundOnly = AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: false)
@@ -156,10 +146,10 @@ struct SettingFeatureTests {
             SettingFeature()
         } withDependencies: { [stored] in
             $0.fetchSettingUseCase.execute = {
-                try await clock.sleep(for: .seconds(1))
-                return stored
+                try? await clock.sleep(for: .seconds(1))
+                return .success(stored)
             }
-            $0.updateSettingUseCase.execute = { $0 }
+            $0.updateSettingUseCase.execute = { .success($0) }
         }
         let toggled = AppSetting(soundEnabled: false, hapticEnabled: false, alarmEnabled: true)
 
@@ -206,7 +196,7 @@ struct SettingFeatureTests {
         let store = TestStore(initialState: state) {
             SettingFeature()
         } withDependencies: {
-            $0.sendFeedbackUseCase.execute = { _, _ in }
+            $0.sendFeedbackUseCase.execute = { _, _ in .success(()) }
         }
 
         await store.send(.destination(.presented(.feedback(.sendTapped)))) {

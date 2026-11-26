@@ -48,7 +48,7 @@ App ──→ Feature ──→ Domain ←── Data ──→ CoreNetwork ─�
 - Feature의 진입점은 UseCase다. 모든 Repository 앞에는 UseCase를 둔다(단순 위임이어도).
 - 화면 이동은 부모 Reducer가 자식의 delegate 액션으로 처리한다.
 - **Repository를 추가하면 `DataModule.bootstrap()`에 반드시 등록한다.** 빠뜨려도 컴파일은 통과하고 런타임에 실패한다.
-- 에러는 계층을 넘을 때마다 받는 쪽의 언어로 바꾼다: `APIError`(CoreNetwork) → Domain 에러(Data에서 변환, 원본 로깅) → 화면 상태와 사용자 문구(Feature). 세션 만료는 앱 전역 이벤트로 App의 `RootFeature`가 처리한다.
+- 에러는 계층을 넘을 때마다 받는 쪽의 언어로 바꾼다: `APIError`(CoreNetwork) → Domain 에러(Data에서 변환, 원본 로깅) → 화면 상태와 사용자 문구(Feature). 계층 사이에서는 던지지 않고 `Result`로 돌려준다(CoreNetwork는 `Result<_, APIError>`, Repository·UseCase 포트는 `Result<_, DomainError>`). 세션 만료는 앱 전역 이벤트로 App의 `RootFeature`가 처리한다.
 
 | 로직 | 위치 |
 | --- | --- |
@@ -69,7 +69,7 @@ App ──→ Feature ──→ Domain ←── Data ──→ CoreNetwork ─�
 
 ## 코드 작성
 
-- 경계는 `@DependencyClient` struct, 이름은 `XxxRepository` / `XxxUseCase`, 시그니처는 처음부터 `async throws`.
+- 경계는 `@DependencyClient` struct, 이름은 `XxxRepository` / `XxxUseCase`, 시그니처는 처음부터 `async`, 반환은 `Result<_, DomainError>`.
 - 환경별 값은 xcconfig → 빌드 설정 → Info.plist로 흘려보낸다(`App/CLAUDE.md`). API 주소는 `API_BASE_URL`.
 - 로깅은 `os.Logger`. subsystem은 번들 ID, category는 모듈 이름. 사용자 데이터와 토큰은 `privacy: .private`(기본값).
 - 유닛 테스트는 Swift Testing, UI 테스트는 XCTest. 계층별 필수 테스트는 디렉터리별 `CLAUDE.md`에 있다.

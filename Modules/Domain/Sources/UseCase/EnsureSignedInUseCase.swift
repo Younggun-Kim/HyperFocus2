@@ -10,7 +10,7 @@ import DependenciesMacros
 
 @DependencyClient
 public struct EnsureSignedInUseCase: Sendable {
-    public var execute: @Sendable () async throws -> Void
+    public var execute: @Sendable () async -> Result<Void, DomainError> = { .failure(.unknown) }
 }
 
 extension DependencyValues {
@@ -26,9 +26,9 @@ extension EnsureSignedInUseCase: DependencyKey {
         execute: {
             @Dependency(\.authRepository) var authRepository
             
-            if authRepository.hasToken() { return }
+            if authRepository.hasToken() { return .success(()) }
             
-            try await authRepository.signInAnonymously()
+            return await authRepository.signInAnonymously()
         }
     )
     public static let testValue = Self()

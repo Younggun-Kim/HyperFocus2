@@ -5,8 +5,6 @@ import Testing
 
 @MainActor
 struct FeedbackFeatureTests {
-    private struct SendError: Error {}
-
     @Test func 카테고리를_누르면_선택이_바뀐다() async {
         let store = TestStore(initialState: FeedbackFeature.State()) {
             FeedbackFeature()
@@ -47,6 +45,7 @@ struct FeedbackFeatureTests {
         } withDependencies: {
             $0.sendFeedbackUseCase.execute = { category, content in
                 sent.setValue((category, content))
+                return .success(())
             }
         }
 
@@ -65,7 +64,7 @@ struct FeedbackFeatureTests {
         let store = TestStore(initialState: FeedbackFeature.State(text: "의견")) {
             FeedbackFeature()
         } withDependencies: {
-            $0.sendFeedbackUseCase.execute = { _, _ in throw DomainError.invalid }
+            $0.sendFeedbackUseCase.execute = { _, _ in .failure(.invalid) }
         }
 
         await store.send(.sendTapped) {
@@ -88,7 +87,7 @@ struct FeedbackFeatureTests {
         let store = TestStore(initialState: FeedbackFeature.State(text: "의견")) {
             FeedbackFeature()
         } withDependencies: {
-            $0.sendFeedbackUseCase.execute = { _, _ in throw DomainError.offline }
+            $0.sendFeedbackUseCase.execute = { _, _ in .failure(.offline) }
         }
 
         await store.send(.sendTapped) {
@@ -106,16 +105,19 @@ struct FeedbackFeatureTests {
         }
     }
 
-    @Test func Domain_에러가_아니면_unknown으로_다룬다() async {
+    @Test func 취소되면_알리지_않고_전송_중만_푼다() async {
         let store = TestStore(initialState: FeedbackFeature.State(text: "의견")) {
             FeedbackFeature()
         } withDependencies: {
-            $0.sendFeedbackUseCase.execute = { _, _ in throw SendError() }
+            $0.sendFeedbackUseCase.execute = { _, _ in .failure(.cancelled) }
         }
-        store.exhaustivity = .off
 
-        await store.send(.sendTapped)
-        await store.receive(.sendFailed(.unknown))
+        await store.send(.sendTapped) {
+            $0.isSending = true
+        }
+        await store.receive(.sendFailed(.cancelled)) {
+            $0.isSending = false
+        }
     }
 
     @Test func 닫기를_누르면_시트를_닫는다() async {

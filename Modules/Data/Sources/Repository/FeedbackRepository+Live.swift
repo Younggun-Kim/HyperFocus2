@@ -21,8 +21,9 @@ extension FeedbackRepository: @retroactive DependencyKey {
                     deviceModel: device.deviceModel,
                     osVersion: device.osVersion
                 )
-                _ = try await service.request(FeedbackAPI.Send(request: request))
-                    .orThrowDomainError("피드백 전송")
+                return await service.request(FeedbackAPI.Send(request: request))
+                    .domainResult("피드백 전송")
+                    .map { _ in }
             }
         )
     }

@@ -15,7 +15,7 @@ struct FeedbackRepositoryTests {
         let service = FakeAPIService(.json(#"{"success": true, "data": {"id": "1"}}"#))
         let repository = FeedbackRepository.live(service: service, device: { [device] in device })
 
-        try await repository.sendFeedback(category, "의견")
+        try await repository.sendFeedback(category, "의견").get()
 
         let endpoint = try #require(service.endpoints.first as? FeedbackAPI.Send)
         #expect(endpoint.request == FeedbackRequestDTO(
@@ -27,12 +27,12 @@ struct FeedbackRepositoryTests {
         ))
     }
 
-    @Test func 서버가_거절하면_invalid를_던진다() async {
+    @Test func 서버가_거절하면_invalid를_돌려준다() async {
         let service = FakeAPIService(.failure(APIError.httpError(statusCode: 400, message: nil)))
         let repository = FeedbackRepository.live(service: service, device: { [device] in device })
 
         await #expect(throws: DomainError.invalid) {
-            try await repository.sendFeedback(.other, "의견")
+            try await repository.sendFeedback(.other, "의견").get()
         }
     }
 }

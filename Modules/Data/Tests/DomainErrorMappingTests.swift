@@ -17,6 +17,7 @@ struct DomainErrorMappingTests {
         (.httpError(statusCode: 500, message: nil), .unknown),
         (.decodingError("bad"), .unknown),
         (.unknown("?"), .unknown),
+        (.cancelled, .cancelled),
     ])
     func APIError를_Domain_에러로_바꾼다(error: APIError, expected: DomainError) {
         #expect(DomainError(error) == expected)

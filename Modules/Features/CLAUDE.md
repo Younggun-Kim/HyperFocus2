@@ -12,7 +12,8 @@
 ## 에러 처리
 
 - Domain 에러를 화면 상태(alert, 재시도, 빈 화면)로 바꾼다. **사용자 문구는 여기서 만든다.**
-- `CancellationError`는 무시한다.
+- effect는 UseCase가 돌려준 `Result`를 `switch`로 풀어 성공/실패 액션을 보낸다.
+- `DomainError.cancelled`는 알리지 않는다(문구를 만드는 함수가 `nil`을 돌려준다). effect가 취소돼서 생긴 결과는 `send`가 버리므로 Reducer에 오지 않는다.
 - `unauthorized`를 받아도 화면을 이동하지 않는다. 세션 만료는 App의 `RootFeature`가 처리한다.
 
 ## 새 Feature 만들기

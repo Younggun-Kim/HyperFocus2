@@ -39,7 +39,7 @@ struct AuthRepositoryTests {
         let service = FakeAPIService(.json(tokenJSON))
         let stored = LockIsolated<AuthToken?>(nil)
 
-        try await repository(service, stored: stored).signInAnonymously()
+        try await repository(service, stored: stored).signInAnonymously().get()
 
         let endpoint = try #require(service.endpoints.first as? AuthAPI.Anonymous)
         #expect(endpoint.request == AnonymousLoginRequestDTO(deviceId: "test-device"))
@@ -47,12 +47,12 @@ struct AuthRepositoryTests {
         #expect(stored.value == issued)
     }
 
-    @Test func 기기_식별자가_없으면_요청하지_않고_unknown을_던진다() async {
+    @Test func 기기_식별자가_없으면_요청하지_않고_unknown을_돌려준다() async {
         let service = FakeAPIService(.json(tokenJSON))
         let stored = LockIsolated<AuthToken?>(nil)
 
         await #expect(throws: DomainError.unknown) {
-            try await repository(service, stored: stored, deviceID: nil).signInAnonymously()
+            try await repository(service, stored: stored, deviceID: nil).signInAnonymously().get()
         }
         #expect(service.endpoints.isEmpty)
     }
@@ -61,7 +61,7 @@ struct AuthRepositoryTests {
         let service = FakeAPIService(.json(tokenJSON))
         let stored = LockIsolated<AuthToken?>(nil)
 
-        try await repository(service, stored: stored).linkApple(request)
+        try await repository(service, stored: stored).linkApple(request).get()
 
         let endpoint = try #require(service.endpoints.first as? AuthAPI.LinkApple)
         #expect(endpoint.request == AppleLinkRequestDTO(
@@ -84,7 +84,7 @@ struct AuthRepositoryTests {
             email: "test@example.com"
         )
 
-        try await repository(service, stored: stored).signInWithApple(request)
+        try await repository(service, stored: stored).signInWithApple(request).get()
 
         let endpoint = try #require(service.endpoints.first as? AuthAPI.LoginApple)
         #expect(endpoint.request == AppleLoginRequestDTO(
@@ -95,22 +95,22 @@ struct AuthRepositoryTests {
         #expect(stored.value == issued)
     }
 
-    @Test func 이미_연동된_Apple_계정이면_conflict를_던진다() async {
+    @Test func 이미_연동된_Apple_계정이면_conflict를_돌려준다() async {
         let service = FakeAPIService(.failure(APIError.httpError(statusCode: 409, message: nil)))
         let stored = LockIsolated<AuthToken?>(nil)
 
         await #expect(throws: DomainError.conflict) {
-            try await repository(service, stored: stored).linkApple(request)
+            try await repository(service, stored: stored).linkApple(request).get()
         }
         #expect(stored.value == nil)
     }
 
-    @Test func 응답에_토큰이_없으면_저장하지_않고_unknown을_던진다() async {
+    @Test func 응답에_토큰이_없으면_저장하지_않고_unknown을_돌려준다() async {
         let service = FakeAPIService(.json(#"{"success": true, "data": null}"#))
         let stored = LockIsolated<AuthToken?>(nil)
 
         await #expect(throws: DomainError.unknown) {
-            try await repository(service, stored: stored).linkApple(request)
+            try await repository(service, stored: stored).linkApple(request).get()
         }
         #expect(stored.value == nil)
     }
