@@ -23,7 +23,7 @@ cd HyperFocus_Refactoring
 mise install
 tuist version   # 4.216.2가 나오면 정상
 
-# 3. 외부 의존성 가져오기 (Tuist/Package.swift: swift-dependencies, TCA, Moya)
+# 3. 외부 의존성 가져오기 (Tuist/Package.swift: swift-dependencies, TCA, Alamofire)
 tuist install
 
 # 4. Xcode 프로젝트 생성 후 열기
@@ -96,7 +96,7 @@ mise uninstall tuist@<버전>  # 안 쓰는 버전 삭제
 .
 ├── Tuist.swift              # 프로젝트 루트 표시 및 생성 옵션
 ├── Tuist/
-│   ├── Package.swift        # 외부 의존성 (SPM: swift-dependencies, TCA, Moya)
+│   ├── Package.swift        # 외부 의존성 (SPM: swift-dependencies, TCA, Alamofire)
 │   ├── ProjectDescriptionHelpers/
 │   │   └── Module.swift     # Target.module(...), Target.feature(...) helper
 │   └── Templates/

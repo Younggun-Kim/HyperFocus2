@@ -5,7 +5,7 @@ Entity, Repository 포트, UseCase를 두는 모듈. 공통 규칙은 루트 `CL
 ## 경계
 
 - 내부 모듈에 의존하지 않는다. 쓸 수 있는 외부 의존성은 swift-dependencies(`Dependencies`, `DependenciesMacros`)뿐이다.
-- `SwiftData`, `Moya`, `Alamofire`, `CoreNetwork`를 import하지 않는다. 보이면 경계가 샌 것이다.
+- `SwiftData`, `Alamofire`, `CoreNetwork`를 import하지 않는다. 보이면 경계가 샌 것이다.
 
 ## 타입 규칙
 

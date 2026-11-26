@@ -6,7 +6,7 @@
 
 - `@Dependency`로는 **UseCase만** 쓴다. Repository를 직접 쓰지 않는다. 같은 Domain 모듈에 있어 그래프로는 막히지 않으니 직접 지킨다.
 - Feature끼리 의존하지 않는다. 화면 이동은 부모 Reducer가 자식의 delegate 액션을 받아 처리한다.
-- `Data`, `CoreNetwork`, `SwiftData`, `Moya`, `Alamofire`를 import하지 않는다.
+- `Data`, `CoreNetwork`, `SwiftData`, `Alamofire`를 import하지 않는다.
 - Reducer에는 화면 상태, 흐름, 화면 이동만 둔다. 비즈니스 규칙은 UseCase로 보낸다.
 
 ## 에러 처리

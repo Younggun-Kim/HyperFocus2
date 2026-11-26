@@ -7,7 +7,6 @@
 
 
 import Foundation
-import Moya
 
 public enum APIError: LocalizedError {
     /// 네트워크 연결 실패

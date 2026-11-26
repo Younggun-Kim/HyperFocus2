@@ -13,7 +13,7 @@ HyperFocus는 집중 타이머 iOS 앱이다. 이 저장소는 앱을 Tuist 기�
 | 플랫폼 | iOS 18.0 이상 | SwiftData를 쓰기 위한 최소 버전. `Module.deploymentTargets` |
 | UI·상태 | SwiftUI, TCA (ComposableArchitecture) | 화면 단위는 TMA 방식 Feature 모듈 |
 | 의존성 주입 | swift-dependencies (`@DependencyClient`) | 계층 경계를 struct 클라이언트로 만든다 |
-| 네트워크 | Moya (Alamofire 기반) | CoreNetwork 안에서만 쓴다 |
+| 네트워크 | Alamofire | CoreNetwork 안에서만 쓴다 |
 | 로컬 저장 | SwiftData + App Group 컨테이너 | 아직 코드 없음 |
 | 테스트 | Swift Testing(유닛), XCTest(UI) | |
 | 프로젝트 | Tuist 4.216.2 (`mise.toml`), Xcode 27.2 | `.xcodeproj`는 생성물 |
@@ -26,7 +26,7 @@ HyperFocus는 집중 타이머 iOS 앱이다. 이 저장소는 앱을 Tuist 기�
 클린 아키텍처(Domain / Data / Presentation)를 Tuist 모듈로 나눈다. Domain이 Repository 포트를 선언하고 Data가 구현하는 의존성 역전 구조다.
 
 ```
-App ──→ Feature ──→ Domain ←── Data ──→ CoreNetwork ──→ Moya / Alamofire
+App ──→ Feature ──→ Domain ←── Data ──→ CoreNetwork ──→ Alamofire
  │         ├──→ Util
  │         └──→ DesignSystem
  └──→ Data   (App만 Data를 링크하고 DataModule.bootstrap() 호출)
@@ -38,7 +38,7 @@ App ──→ Feature ──→ Domain ←── Data ──→ CoreNetwork ─�
 | Feature | 화면 단위 (Sources, Example, Tests) | Domain, Util, DesignSystem, TCA | App | `Modules/Features/CLAUDE.md` |
 | Domain | Entity, Repository 포트, UseCase | swift-dependencies만 | Feature, Data | `Modules/Domain/CLAUDE.md` |
 | Data | Repository 구현, DataSource | Domain, CoreNetwork, swift-dependencies | App | `Modules/Data/CLAUDE.md` |
-| CoreNetwork | 통신 공통 코드 (`APIService`, `APIEndpoint`, 토큰 갱신) | Moya, Alamofire | Data | `Modules/Core/CoreNetwork/CLAUDE.md` |
+| CoreNetwork | 통신 공통 코드 (`APIService`, `APIEndpoint`, 토큰 갱신) | Alamofire | Data | `Modules/Core/CoreNetwork/CLAUDE.md` |
 | Util | 순수 유틸리티 | 없음 | 모든 모듈 | - |
 | DesignSystem | 공통 UI 리소스와 컴포넌트 (`Resources/`의 에셋, `DesignSystemAsset` 접근자) | 없음 | Feature, App | - |
 
@@ -106,7 +106,7 @@ tuist test --device "iPhone 17 Pro" --no-selective-testing   # CI와 같은 전�
 - Feature에서 Repository를 `@Dependency`로 직접 쓰지 않는다. 같은 Domain 모듈이라 그래프로는 막히지 않는다.
 - Feature끼리 의존하지 않는다.
 - Data를 App 밖(Feature, Example 앱, 테스트 포함)에서 링크하지 않는다. Example과 테스트는 mock을 주입한다.
-- Feature·Domain에서 `SwiftData`, `Moya`, `Alamofire`, `CoreNetwork`를 import하지 않는다. Moya·Alamofire는 CoreNetwork 밖에서 쓰지 않는다.
+- Feature·Domain에서 `SwiftData`, `Alamofire`, `CoreNetwork`를 import하지 않는다. Alamofire는 CoreNetwork 밖에서 쓰지 않는다.
 - 아래 계층의 에러 타입(`APIError`, SwiftData 에러)을 위로 그대로 올리지 않는다. 사용자 문구를 Feature 밖에서 만들지 않는다.
 
 **코드와 데이터**
@@ -122,7 +122,6 @@ tuist test --device "iPhone 17 Pro" --no-selective-testing   # CI와 같은 전�
 **코드·설정**
 - CI를 다시 켠다. 실행 시간 때문에 일시 중지했다(GitHub에서 워크플로 비활성화). 다시 켤 때는 draft PR #1(`ci/xcode-27-runner`, `xcode-27` 러너와 `iPhone 18 Pro`)을 최신 main에 맞춰 함께 적용한다. `macos-26` 러너에는 Xcode 27.2가 없어 그대로 켜면 실패한다.
 - CoreNetwork의 `APIError+UserMessage.swift`에 있는 사용자 문구를 Feature로 옮기고, `APIError`의 `LocalizedError` 채택을 다시 검토한다.
-- `Alamofire`를 `Tuist/Package.swift`에 명시적으로 선언한다.
 - Swift 6 언어 모드와 strict concurrency를 `Module.swift` 헬퍼에서 모든 타깃에 일괄 적용한다.
 - 포맷은 Xcode에 포함된 `swift format`, 설정은 저장소 루트의 `.swift-format` 하나로 둔다.
 - `App/Configs/Secrets.xcconfig`를 gitignore하고 각 xcconfig에서 `#include? "Secrets.xcconfig"`로 포함한다. CI는 GitHub Secrets로 이 파일을 만든다.
@@ -134,8 +133,8 @@ tuist test --device "iPhone 17 Pro" --no-selective-testing   # CI와 같은 전�
 | --- | --- | --- |
 | 선언하지 않은 import | `tuist inspect dependencies --only implicit` | 적용 |
 | Feature는 Repository를 직접 쓰지 않음 | Feature 소스에서 `@Dependency(\.` + `Repository` grep | 미적용 |
-| Feature·Domain에서 `SwiftData`·`Moya`·`Alamofire`·`CoreNetwork` import 금지 | 해당 디렉터리 grep | 미적용 |
-| Moya·Alamofire는 CoreNetwork에서만 | `Modules/Core/CoreNetwork` 밖 grep | 미적용 |
+| Feature·Domain에서 `SwiftData`·`Alamofire`·`CoreNetwork` import 금지 | 해당 디렉터리 grep | 미적용 |
+| Alamofire는 CoreNetwork에서만 | `Modules/Core/CoreNetwork` 밖 grep | 미적용 |
 | bootstrap 등록 누락 | App 테스트에서 `bootstrap()` 후 모든 Repository가 live 값인지 확인 | 미적용 |
 | 포맷 | `swift format lint --strict` | 미적용 |
 | Release configuration 빌드 | CI 단계 추가 | 미적용 |
