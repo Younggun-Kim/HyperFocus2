@@ -1,4 +1,5 @@
 import AuthenticationServices
+import Domain
 import Foundation
 import os
 
@@ -18,7 +19,30 @@ public struct AppleCredential: Equatable, Sendable {
     public let identityToken: String?
     public let authorizationCode: String?
     /// 첫 로그인 때만 온다.
+    public let name: String?
+    /// 첫 로그인 때만 온다.
     public let email: String?
+}
+
+extension AppleCredential {
+    /// 서버에 보낼 값. 토큰이나 코드가 없으면 서버가 검증할 수 없으므로 nil.
+    var signInRequest: AppleSignInRequest? {
+        guard let identityToken, let authorizationCode else { return nil }
+        return AppleSignInRequest(
+            identityToken: identityToken,
+            authorizationCode: authorizationCode,
+            name: name,
+            email: email
+        )
+    }
+}
+
+extension PersonNameComponents {
+    /// 원본 앱과 같이 성 + 이름을 붙인다. 둘 다 없으면 nil.
+    var appleDisplayName: String? {
+        let name = (familyName ?? "") + (givenName ?? "")
+        return name.isEmpty ? nil : name
+    }
 }
 
 extension AppleSignInResult {
@@ -33,6 +57,7 @@ extension AppleSignInResult {
                 userID: credential.user,
                 identityToken: credential.identityToken.flatMap { String(data: $0, encoding: .utf8) },
                 authorizationCode: credential.authorizationCode.flatMap { String(data: $0, encoding: .utf8) },
+                name: credential.fullName?.appleDisplayName,
                 email: credential.email
             ))
         case .failure(let error):

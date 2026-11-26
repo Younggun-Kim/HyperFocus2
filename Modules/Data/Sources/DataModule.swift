@@ -13,6 +13,7 @@ public enum DataModule {
             $0.sampleRepository = SampleRepository.liveValue
             $0.settingRepository = SettingRepository.liveValue
             $0.feedbackRepository = FeedbackRepository.liveValue
+            $0.authRepository = AuthRepository.liveValue
         }
     }
 }

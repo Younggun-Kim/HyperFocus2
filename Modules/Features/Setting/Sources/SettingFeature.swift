@@ -21,6 +21,8 @@ public struct SettingFeature {
         var setting: AppSetting
         /// 서버가 마지막으로 확정한 값. 저장에 실패하면 이 값으로 되돌린다.
         var savedSetting: AppSetting
+        /// Apple 로그인 요청을 서버에 보내는 중. 버튼을 또 눌러도 한 번만 보낸다.
+        var isSigningIn = false
         @Presents var destination: Destination.State?
 
         public init(setting: AppSetting = .default) {
@@ -34,6 +36,8 @@ public struct SettingFeature {
         case deviceSettingChanged(type: SettingMenuType.DeviceSetting, isOn: Bool)
         case aboutUsTapped(SettingMenuType.AboutUs)
         case appleSignInCompleted(AppleSignInResult)
+        case appleSignInSucceeded
+        case appleSignInFailed(DomainError)
         case settingLoaded(AppSetting)
         case settingLoadFailed(DomainError)
         case settingSaved(AppSetting)
@@ -44,9 +48,11 @@ public struct SettingFeature {
     enum CancelID {
         case load
         case save
+        case signIn
     }
 
     @Dependency(\.fetchSettingUseCase) var fetchSettingUseCase
+    @Dependency(\.signInWithAppleUseCase) var signInWithAppleUseCase
     @Dependency(\.updateSettingUseCase) var updateSettingUseCase
 
     public init() {}
@@ -113,14 +119,45 @@ public struct SettingFeature {
                 switch result {
                 case let .authorized(credential):
                     Logger.setting.info(
-                        "Apple 로그인 성공: identityToken \(credential.identityToken != nil), authorizationCode \(credential.authorizationCode != nil), email \(credential.email != nil)"
+                        "Apple 인증 완료: identityToken \(credential.identityToken != nil), authorizationCode \(credential.authorizationCode != nil), email \(credential.email != nil)"
                     )
+                    guard !state.isSigningIn else { return .none }
+                    guard let request = credential.signInRequest else {
+                        Logger.setting.error("Apple 로그인 실패: 서버에 보낼 토큰이나 코드가 없다")
+                        state.destination = .alert(.appleSignInFailure(.unknown))
+                        return .none
+                    }
+                    state.isSigningIn = true
+                    return .run { send in
+                        do {
+                            try await signInWithAppleUseCase.execute(request)
+                            await send(.appleSignInSucceeded)
+                        } catch is CancellationError {
+                        } catch {
+                            await send(.appleSignInFailed(error as? DomainError ?? .unknown))
+                        }
+                    }
+                    .cancellable(id: CancelID.signIn, cancelInFlight: true)
+
                 case .canceled:
                     Logger.setting.debug("Apple 로그인: 사용자가 취소")
+                    return .none
+
                 case let .failed(code):
                     Logger.setting.error("Apple 로그인 실패: code \(code)")
+                    state.destination = .alert(.appleSignInFailure(.unknown))
+                    return .none
                 }
-                // TODO: 자격 증명을 로그인 UseCase로 보낸다(계정 기능 PR).
+
+            case .appleSignInSucceeded:
+                state.isSigningIn = false
+                Logger.setting.info("Apple 로그인 완료")
+                // TODO: 계정 정보(/auth/me)를 불러와 AppleLoginView에 email을 보여 준다.
+                return .none
+
+            case let .appleSignInFailed(error):
+                state.isSigningIn = false
+                state.destination = .alert(.appleSignInFailure(error))
                 return .none
 
             case .destination(.presented(.feedback(.delegate(.sent)))):
@@ -159,6 +196,20 @@ extension AppSetting {
 }
 
 extension AlertState where Action == Never {
+    /// Apple 로그인 실패 문구. 로그인 중의 `unauthorized`는 세션 만료가 아니라 서버가 Apple 자격 증명을 거절한 것이므로 알린다.
+    static func appleSignInFailure(_ error: DomainError) -> Self {
+        AlertState {
+            TextState("Couldn't sign in with Apple.")
+        } actions: {
+            ButtonState(role: .cancel) { TextState("OK") }
+        } message: {
+            switch error {
+            case .offline: TextState("Please check your internet connection.")
+            case .unauthorized, .notFound, .invalid, .conflict, .unknown: TextState("Please try again in a moment.")
+            }
+        }
+    }
+
     enum SettingAction {
         case load
         case save
@@ -173,7 +224,7 @@ extension AlertState where Action == Never {
             return nil
         case .offline:
             message = "Please check your internet connection."
-        case .invalid, .unknown:
+        case .invalid, .conflict, .unknown:
             message = "Please try again in a moment."
         }
         return AlertState {

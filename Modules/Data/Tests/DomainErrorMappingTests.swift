@@ -12,7 +12,7 @@ struct DomainErrorMappingTests {
         (.httpError(statusCode: 403, message: nil), .unauthorized),
         (.httpError(statusCode: 404, message: nil), .notFound),
         (.httpError(statusCode: 400, message: "잘못된 값"), .invalid),
-        (.httpError(statusCode: 409, message: nil), .invalid),
+        (.httpError(statusCode: 409, message: nil), .conflict),
         (.httpError(statusCode: 422, message: nil), .invalid),
         (.httpError(statusCode: 500, message: nil), .unknown),
         (.decodingError("bad"), .unknown),

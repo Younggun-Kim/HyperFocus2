@@ -132,6 +132,7 @@ let project = Project(
             dependencies: [
                 .target(name: "Domain"),
                 .target(name: "CoreNetwork"),
+                .external(name: "Dependencies"),
             ]
         ),
         

@@ -10,6 +10,8 @@ public enum DomainError: Error, Sendable, Equatable {
     case notFound
     /// 서버가 요청을 거절함(잘못된 값)
     case invalid
+    /// 이미 있는 대상과 겹침(예: 다른 계정에 연동된 Apple 계정)
+    case conflict
     /// 그 밖의 실패. 원본은 Data가 로깅한다
     case unknown
 }

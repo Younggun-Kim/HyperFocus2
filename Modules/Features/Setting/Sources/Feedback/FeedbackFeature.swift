@@ -111,7 +111,7 @@ extension AlertState where Action == FeedbackFeature.Action.Alert {
         } message: {
             switch error {
             case .offline: TextState("Please check your internet connection.")
-            case .unauthorized, .notFound, .invalid, .unknown: TextState("Please try again in a moment.")
+            case .unauthorized, .notFound, .invalid, .conflict, .unknown: TextState("Please try again in a moment.")
             }
         }
     }
