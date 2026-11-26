@@ -13,15 +13,26 @@ import Synchronization
 
 /// Data가 쓰는 통신 진입점. Moya 타입이 드러나지 않도록 `APIEndpoint`만 받는다.
 /// Data의 테스트는 이 프로토콜의 가짜 구현을 넣어 Repository를 검증한다.
+///
+/// 구현할 것은 `requestData` 하나다. 디코딩과 봉투 열기는 아래 extension이 맡아서,
+/// 가짜 구현이 실제와 다르게 동작할 수 없다.
 public protocol APIServiceProtocol: Sendable {
-    /// 요청 실행 (APIResponse 래핑)
+    /// 요청을 보내고 성공(2xx) 응답의 본문을 그대로 돌려준다.
+    func requestData(_ endpoint: some APIEndpoint) async throws -> Data
+}
+
+public extension APIServiceProtocol {
+    /// 요청을 보내고 응답 봉투(`APIResponse`)를 열어 `data`를 돌려준다.
+    ///
+    /// 2xx인데 봉투가 약속과 다르면 `APIError.decodingError`를 던진다(`APIResponse.open`).
+    /// 본문을 쓰지 않는 API는 `EmptyResponse`로 받는다.
     func request<D: Decodable & Sendable>(
         _ endpoint: some APIEndpoint,
         responseType: D.Type
-    ) async throws -> APIResponse<D>
-
-    /// Raw Data 요청 (파일 다운로드 등)
-    func requestData(_ endpoint: some APIEndpoint) async throws -> Data
+    ) async throws -> D {
+        let data = try await requestData(endpoint)
+        return try APIResponse<D>.open(data, path: endpoint.path)
+    }
 }
 
 /// `MoyaProvider`가 `Sendable`을 채택하지 않아 `@unchecked`로 둔다.
@@ -65,13 +76,6 @@ public struct APIService: APIServiceProtocol, @unchecked Sendable {
         self.authProvider = authProvider
     }
     
-    public func request<D: Decodable & Sendable>(
-        _ endpoint: some APIEndpoint,
-        responseType: D.Type
-    ) async throws -> APIResponse<D> {
-        try await request(EndpointTarget(baseURL: baseURL, endpoint: endpoint), responseType: responseType)
-    }
-
     public func requestData(_ endpoint: some APIEndpoint) async throws -> Data {
         try await requestData(EndpointTarget(baseURL: baseURL, endpoint: endpoint))
     }
@@ -80,14 +84,8 @@ public struct APIService: APIServiceProtocol, @unchecked Sendable {
     func request<T: BaseTarget, D: Decodable & Sendable>(
         _ target: T,
         responseType: D.Type
-    ) async throws -> APIResponse<D> {
-        let data = try await send(target)
-        
-        do {
-            return try JSONDecoder.api.decode(APIResponse<D>.self, from: data)
-        } catch {
-            throw APIError.decodingError(String(describing: error))
-        }
+    ) async throws -> D {
+        try APIResponse<D>.open(try await send(target), path: target.path)
     }
     
     func requestData<T: BaseTarget>(_ target: T) async throws -> Data {

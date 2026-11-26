@@ -27,7 +27,7 @@ struct APIInterceptorTests {
 
             let response = try await service.request(StubTarget(host: host), responseType: User.self)
 
-            #expect(response.data == User(userName: "yg"))
+            #expect(response == User(userName: "yg"))
             #expect(requests.value.map { $0.value(forHTTPHeaderField: "Authorization") } == ["Bearer old-access"])
         }
 
@@ -129,7 +129,7 @@ struct APIInterceptorTests {
 
             let response = try await service.request(StubTarget(host: host), responseType: User.self)
 
-            #expect(response.data == User(userName: "yg"))
+            #expect(response == User(userName: "yg"))
             #expect(refreshCount.value == 1)
             #expect(storage.load() == .new)
             #expect(requests.value.map { $0.value(forHTTPHeaderField: "Authorization") } == ["Bearer old-access", "Bearer new-access"])

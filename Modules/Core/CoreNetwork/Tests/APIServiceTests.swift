@@ -14,8 +14,7 @@ struct APIServiceTests {
         
         let response = try await service.request(StubTarget(), responseType: User.self)
         
-        #expect(response.success)
-        #expect(response.data == User(userName: "yg"))
+        #expect(response == User(userName: "yg"))
     }
     
     @Test func 성공_코드가_아니면_httpError와_서버_메시지를_던진다() async throws {
@@ -101,6 +100,73 @@ struct APIServiceTests {
             }
             #expect(statusCode == 500)
             #expect(message == nil)
+        }
+    }
+
+    /// 2xx인데 봉투가 약속과 다르면 서버 계약 위반이다. `decodingError`로 던진다.
+    @Suite struct 봉투_열기 {
+        @Test(arguments: [
+            #"{"success": true, "data": null}"#,
+            #"{"success": true}"#,
+        ])
+        func data가_없으면_decodingError를_던진다(json: String) async throws {
+            let service = APIService.stub(.networkResponse(200, Data(json.utf8)))
+
+            let error = await #expect(throws: APIError.self) {
+                try await service.request(StubTarget(), responseType: User.self)
+            }
+
+            guard case .decodingError(let message) = error else {
+                Issue.record("decodingError가 아님: \(String(describing: error))")
+                return
+            }
+            #expect(message.contains("/stub"))   // 로그에서 어떤 API였는지 구분한다
+        }
+
+        @Test(arguments: [
+            #"{"success": true, "data": null}"#,
+            #"{"success": true}"#,
+            #"{"success": true, "data": {"id": "1"}}"#,
+        ])
+        func EmptyResponse로_받으면_data가_없어도_성공한다(json: String) async throws {
+            let service = APIService.stub(.networkResponse(200, Data(json.utf8)))
+
+            _ = try await service.request(StubTarget(), responseType: EmptyResponse.self)
+        }
+
+        @Test(arguments: [200, 204])
+        func EmptyResponse로_받으면_본문이_비어도_성공한다(statusCode: Int) async throws {
+            let service = APIService.stub(.networkResponse(statusCode, Data()))
+
+            _ = try await service.request(StubTarget(), responseType: EmptyResponse.self)
+        }
+
+        @Test func 본문이_비었는데_data를_기대하면_decodingError를_던진다() async throws {
+            let service = APIService.stub(.networkResponse(200, Data()))
+
+            let error = await #expect(throws: APIError.self) {
+                try await service.request(StubTarget(), responseType: User.self)
+            }
+
+            guard case .decodingError = error else {
+                Issue.record("decodingError가 아님: \(String(describing: error))")
+                return
+            }
+        }
+
+        @Test func 성공_코드인데_success가_false면_decodingError에_서버_메시지를_담는다() async throws {
+            let json = #"{"success": false, "data": null, "message": "처리할 수 없습니다", "code": "E001"}"#
+            let service = APIService.stub(.networkResponse(200, Data(json.utf8)))
+
+            let error = await #expect(throws: APIError.self) {
+                try await service.request(StubTarget(), responseType: EmptyResponse.self)
+            }
+
+            guard case .decodingError(let message) = error else {
+                Issue.record("decodingError가 아님: \(String(describing: error))")
+                return
+            }
+            #expect(message.contains("처리할 수 없습니다"))
         }
     }
 

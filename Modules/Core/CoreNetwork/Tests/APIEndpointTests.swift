@@ -58,6 +58,6 @@ struct APIEndpointTests {
 
         let response = try await service.request(StubEndpoint(), responseType: User.self)
 
-        #expect(response.data == User(userName: "yg"))
+        #expect(response == User(userName: "yg"))
     }
 }

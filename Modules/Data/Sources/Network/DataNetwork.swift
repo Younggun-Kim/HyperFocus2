@@ -13,14 +13,10 @@ enum DataNetwork {
             storage: KeychainTokenStorage(),
             refresh: { token in
                 // refresh는 요청이 401을 받은 뒤에만 불리므로, 이때 `service`는 이미 만들어져 있다.
-                let response = try await DataNetwork.service.request(
+                try await DataNetwork.service.request(
                     AuthAPI.refresh(refreshToken: token.refreshToken),
                     responseType: TokenResponseDTO.self
-                )
-                guard let data = response.data else {
-                    throw APIError.decodingError("갱신 응답에 토큰이 없다")
-                }
-                return data.toAuthToken()
+                ).toAuthToken()
             },
             onSessionExpired: {
                 // TODO: 세션 만료를 Domain UseCase로 내보내 RootFeature가 처리하게 한다(계정 기능 PR).
