@@ -21,5 +21,5 @@
 
 ## 테스트
 
-- stub provider와 `Tests/Helpers`(`MockURLProtocol`, `InMemoryTokenStorage`, `Fixtures`)로 요청, 디코딩, 토큰 갱신을 검증한다.
+- 공개 API(`APIEndpoint`, `request`, `requestData`)로 보내고 `Tests/Helpers`의 `MockURLProtocol`로 응답해, 요청·디코딩·에러 변환·토큰 갱신을 검증한다. 테스트는 통신 라이브러리 타입을 import하지 않는다. 구현을 바꿔도 테스트는 그대로 통과해야 한다.
 - fixture에 실제 토큰을 넣지 않는다.

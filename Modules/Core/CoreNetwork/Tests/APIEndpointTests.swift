@@ -1,63 +1,84 @@
 import Foundation
-import Moya
 import Testing
 @testable import CoreNetwork
 
-/// Data가 쓰는 `APIEndpoint`가 Moya TargetType으로 그대로 옮겨지는지 확인한다.
+/// `APIEndpoint`에 적은 내용이 실제로 나가는 요청에 그대로 실리는지 확인한다.
+/// 서버가 받은 `URLRequest`를 보므로, 요청을 만드는 방식이 바뀌어도 그대로 통과해야 한다.
 struct APIEndpointTests {
-    @Test func baseURL은_APIService가_붙이고_경로는_Endpoint를_따른다() {
-        let target = EndpointTarget(baseURL: URL(string: "https://api.test")!, endpoint: StubEndpoint())
+    private static let userJSON = #"{"success": true, "data": {"user_name": "yg"}}"#
 
-        #expect(URL(target: target).absoluteString == "https://api.test/endpoint")
+    /// 요청 하나를 보내고 서버가 받은 `URLRequest`를 돌려준다.
+    private func sent(
+        _ endpoint: StubEndpoint<User>,
+        baseURL: (String) -> String = { "https://\($0)" }
+    ) async throws -> URLRequest {
+        let requests = Locked<[URLRequest]>([])
+        let host = MockURLProtocol.register { request in
+            requests.withLock { $0.append(request) }
+            return (.mock(for: request, statusCode: 200), Data(Self.userJSON.utf8))
+        }
+        defer { MockURLProtocol.unregister(host) }
+        let service = APIService(
+            baseURL: URL(string: baseURL(host))!,
+            tokenManager: .mock(storage: InMemoryTokenStorage(.old)),
+            configuration: .mock
+        )
+
+        _ = try await service.request(endpoint)
+
+        return try #require(requests.value.first)
+    }
+
+    @Test func baseURL은_APIService가_붙이고_경로는_Endpoint를_따른다() async throws {
+        let request = try await sent(StubEndpoint(path: "/api/v1/endpoint"))
+
+        #expect(request.url?.path() == "/api/v1/endpoint")
+        #expect(request.url?.query() == nil)
+    }
+
+    @Test func baseURL에_경로가_있으면_그_뒤에_붙인다() async throws {
+        let request = try await sent(StubEndpoint(path: "/endpoint"), baseURL: { "https://\($0)/prefix" })
+
+        #expect(request.url?.path() == "/prefix/endpoint")
     }
 
     @Test(arguments: [
-        (HTTPMethod.get, Moya.Method.get),
-        (.post, .post),
-        (.put, .put),
-        (.patch, .patch),
-        (.delete, .delete),
+        (HTTPMethod.get, "GET"),
+        (.post, "POST"),
+        (.put, "PUT"),
+        (.patch, "PATCH"),
+        (.delete, "DELETE"),
     ])
-    func HTTP_메서드를_Moya_메서드로_바꾼다(method: HTTPMethod, expected: Moya.Method) {
-        let target = EndpointTarget(baseURL: .stub, endpoint: StubEndpoint(method: method))
+    func HTTP_메서드를_그대로_보낸다(method: HTTPMethod, expected: String) async throws {
+        let request = try await sent(StubEndpoint(method: method))
 
-        #expect(target.method == expected)
+        #expect(request.httpMethod == expected)
     }
 
-    @Test func 본문이_없으면_requestPlain으로_보낸다() {
-        let target = EndpointTarget(baseURL: .stub, endpoint: StubEndpoint())
+    @Test(arguments: [HTTPMethod.get, .post])
+    func 본문이_없으면_본문_없이_보낸다(method: HTTPMethod) async throws {
+        let request = try await sent(StubEndpoint(method: method))
 
-        guard case .requestPlain = target.task else {
-            Issue.record("requestPlain이 아님: \(target.task)")
-            return
-        }
+        #expect(request.bodyData ?? Data() == Data())
     }
 
-    @Test func 본문은_JSON으로_인코딩한다() throws {
-        let endpoint = StubEndpoint(method: .post, body: StubEndpoint.Body(name: "yg"))
-        let target = EndpointTarget(baseURL: .stub, endpoint: endpoint)
+    /// 서버는 camelCase 키를 받는다. 키를 snake_case로 바꾸지 않는다.
+    @Test func 본문은_키를_바꾸지_않고_JSON으로_인코딩한다() async throws {
+        let request = try await sent(StubEndpoint(method: .post, body: StubEndpoint<User>.Body()))
 
-        guard case .requestJSONEncodable(let body) = target.task else {
-            Issue.record("requestJSONEncodable이 아님: \(target.task)")
-            return
-        }
-        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(body)) as? [String: String]
-        #expect(json == ["name": "yg"])
+        let body = try #require(request.bodyData)
+        let json = try JSONSerialization.jsonObject(with: body) as? [String: String]
+        #expect(json == ["name": "yg", "userName": "yg"])
     }
 
-    @Test(arguments: [true, false])
-    func 인증_여부를_그대로_넘긴다(requiresAuth: Bool) {
-        let target = EndpointTarget(baseURL: .stub, endpoint: StubEndpoint(requiresAuth: requiresAuth))
+    @Test(arguments: [
+        StubEndpoint<User>(method: .get),
+        StubEndpoint<User>(method: .post, body: StubEndpoint<User>.Body()),
+    ])
+    func 본문이_있든_없든_JSON_헤더를_붙인다(endpoint: StubEndpoint<User>) async throws {
+        let request = try await sent(endpoint)
 
-        #expect(target.requiresAuth == requiresAuth)
-    }
-
-    @Test func Endpoint로_요청해도_응답을_디코딩한다() async throws {
-        let json = #"{"success": true, "data": {"user_name": "yg"}, "message": null, "code": null}"#
-        let service = APIService.stub(.networkResponse(200, Data(json.utf8)))
-
-        let response = try await service.request(StubEndpoint())
-
-        #expect(response == User(userName: "yg"))
+        #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+        #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
     }
 }
