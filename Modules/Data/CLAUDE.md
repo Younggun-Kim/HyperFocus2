@@ -13,7 +13,8 @@ Domain의 Repository 포트를 구현하는 모듈. App만 링크한다. 공통 
 - 구현은 `Sources/Repository/XxxRepository+Live.swift`의 `liveValue`에 둔다. 저장 방식과 묶인 처리(조회, 변환, 캐시)는 여기서 한다.
 - DataSource는 구체 타입으로 두고 swift-dependencies로 주입하지 않는다.
 - 저장 방식 타입은 `internal`로 둔다. API별 `APIEndpoint`와 DTO는 `DataSource/Remote`, SwiftData `@Model`은 `DataSource` 아래에 둔다. `liveValue`에서 Entity로 변환해 반환하고, 이 타입들을 `public`으로 열지 않는다.
-- 통신은 CoreNetwork의 API만 쓴다. Moya·Alamofire를 import하지 않는다. API는 `APIEndpoint`를 채택한 enum으로 기술한다.
+- 통신은 CoreNetwork의 API만 쓴다. Moya·Alamofire를 import하지 않는다. API 하나는 `APIEndpoint`를 채택한 struct 하나로 기술하고, `Response`로 응답 타입을 묶는다. 기능별 enum(`SettingAPI` 등)은 이름 공간으로만 쓴다.
+- 응답 봉투(`APIResponse`)는 CoreNetwork가 연다. Repository는 `service.request(_:)`가 돌려준 DTO만 다룬다. 본문을 쓰지 않는 API의 `Response`는 `EmptyResponse`다.
 - `APIService`는 `Sources/Network/DataNetwork.swift`에서 하나만 만든다(baseURL은 Info.plist의 `API_BASE_URL`, 토큰은 키체인).
 - Repository `liveValue`는 `live(service:)` 팩토리로 만들어, 테스트가 가짜 `APIServiceProtocol`을 넣을 수 있게 한다.
 

@@ -26,12 +26,9 @@ public extension APIServiceProtocol {
     ///
     /// 2xx인데 봉투가 약속과 다르면 `APIError.decodingError`를 던진다(`APIResponse.open`).
     /// 본문을 쓰지 않는 API는 `EmptyResponse`로 받는다.
-    func request<D: Decodable & Sendable>(
-        _ endpoint: some APIEndpoint,
-        responseType: D.Type
-    ) async throws -> D {
+    func request<E: APIEndpoint>(_ endpoint: E) async throws -> E.Response {
         let data = try await requestData(endpoint)
-        return try APIResponse<D>.open(data, path: endpoint.path)
+        return try APIResponse<E.Response>.open(data, path: endpoint.path)
     }
 }
 

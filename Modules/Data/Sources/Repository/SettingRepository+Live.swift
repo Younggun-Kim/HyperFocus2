@@ -12,18 +12,12 @@ extension SettingRepository: @retroactive DependencyKey {
         Self(
             fetchSetting: {
                 try await convertingErrors("설정 조회") {
-                    try await service.request(
-                        SettingAPI.fetch,
-                        responseType: SettingResponseDTO.self
-                    ).toEntity()
+                    try await service.request(SettingAPI.Fetch()).toEntity()
                 }
             },
             updateSetting: { setting in
                 try await convertingErrors("설정 변경") {
-                    try await service.request(
-                        SettingAPI.update(SettingRequestDTO(setting)),
-                        responseType: SettingResponseDTO.self
-                    ).toEntity()
+                    try await service.request(SettingAPI.Update(request: SettingRequestDTO(setting))).toEntity()
                 }
             }
         )

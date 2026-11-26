@@ -14,11 +14,17 @@ public enum HTTPMethod: Sendable, Equatable {
     case delete
 }
 
-/// API 하나를 기술한다. Data의 `DataSource/Remote`가 API별로 채택한다.
+/// API 하나를 기술한다. Data의 `DataSource/Remote`가 API마다 타입 하나로 채택한다.
+///
+/// `Response`로 응답 타입을 함께 묶어, 잘못 연결하면 컴파일 에러가 나게 한다.
+/// 본문을 쓰지 않는 API는 `EmptyResponse`로 둔다.
 ///
 /// 주소의 앞부분(baseURL)은 `APIService`가 붙인다. 여기서는 경로만 적는다.
 /// Moya `TargetType`으로 바꾸는 일은 CoreNetwork 안에서만 한다.
-public protocol APIEndpoint: Sendable {
+public protocol APIEndpoint<Response>: Sendable {
+    /// 응답 봉투의 `data`에 들어 있는 타입
+    associatedtype Response: Decodable & Sendable
+
     var path: String { get }
     var method: HTTPMethod { get }
     /// JSON으로 인코딩해 본문에 싣는다. `nil`이면 본문 없이 보낸다.

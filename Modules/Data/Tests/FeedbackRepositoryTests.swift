@@ -17,14 +17,14 @@ struct FeedbackRepositoryTests {
 
         try await repository.sendFeedback(category, "의견")
 
-        let endpoint = try #require(service.endpoints.first as? FeedbackAPI)
-        #expect(endpoint == .send(FeedbackRequestDTO(
+        let endpoint = try #require(service.endpoints.first as? FeedbackAPI.Send)
+        #expect(endpoint.request == FeedbackRequestDTO(
             category: apiValue,
             content: "의견",
             appVersion: "1.2.0",
             deviceModel: "iPhone17,1",
             osVersion: "18.0.0"
-        )))
+        ))
     }
 
     @Test func 서버가_거절하면_invalid를_던진다() async {

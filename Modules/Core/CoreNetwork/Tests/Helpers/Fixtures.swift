@@ -62,6 +62,8 @@ extension APIService {
 
 /// `APIEndpoint`가 `EndpointTarget`으로 바뀌는지 확인하는 API
 struct StubEndpoint: APIEndpoint {
+    typealias Response = User
+
     struct Body: Encodable, Sendable { let name: String }
 
     var path = "/endpoint"

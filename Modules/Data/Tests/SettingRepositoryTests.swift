@@ -13,7 +13,7 @@ struct SettingRepositoryTests {
         let setting = try await repository.fetchSetting()
 
         #expect(setting == AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: true))
-        #expect(service.endpoints.first as? SettingAPI == .fetch)
+        #expect(service.endpoints.first is SettingAPI.Fetch)
     }
 
     @Test func 설정을_변경하면_전체_값을_PATCH로_보내고_서버_값을_돌려준다() async throws {
@@ -23,8 +23,8 @@ struct SettingRepositoryTests {
 
         let setting = try await repository.updateSetting(requested)
 
-        let endpoint = try #require(service.endpoints.first as? SettingAPI)
-        #expect(endpoint == .update(SettingRequestDTO(requested)))
+        let endpoint = try #require(service.endpoints.first as? SettingAPI.Update)
+        #expect(endpoint.request == SettingRequestDTO(requested))
         #expect(endpoint.method == .patch)
         #expect(setting == AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: true))
     }
