@@ -29,10 +29,11 @@ struct SettingRepositoryTests {
         #expect(setting == AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: true))
     }
 
-    @Test func 응답에_data가_없으면_notFound를_던진다() async {
+    /// 성공 응답인데 `data`가 비었으면 서버 계약 위반이다. CoreNetwork가 `decodingError`로 던진다.
+    @Test func 응답에_data가_없으면_unknown을_던진다() async {
         let repository = SettingRepository.live(service: FakeAPIService(.json(#"{"success": true, "data": null}"#)))
 
-        await #expect(throws: DomainError.notFound) {
+        await #expect(throws: DomainError.unknown) {
             try await repository.fetchSetting()
         }
     }

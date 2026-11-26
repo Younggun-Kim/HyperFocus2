@@ -2,6 +2,7 @@ import CoreNetwork
 import Foundation
 
 /// 받은 `APIEndpoint`를 기록하고, 정해 둔 JSON이나 에러를 돌려주는 가짜 통신 객체.
+/// 디코딩과 봉투 열기는 `APIServiceProtocol`의 extension이 실제와 똑같이 한다.
 final class FakeAPIService: APIServiceProtocol, @unchecked Sendable {
     enum Reply {
         case json(String)
@@ -18,14 +19,6 @@ final class FakeAPIService: APIServiceProtocol, @unchecked Sendable {
 
     var endpoints: [any APIEndpoint] {
         lock.withLock { _endpoints }
-    }
-
-    func request<D: Decodable & Sendable>(
-        _ endpoint: some APIEndpoint,
-        responseType: D.Type
-    ) async throws -> APIResponse<D> {
-        let data = try await requestData(endpoint)
-        return try JSONDecoder().decode(APIResponse<D>.self, from: data)
     }
 
     func requestData(_ endpoint: some APIEndpoint) async throws -> Data {
