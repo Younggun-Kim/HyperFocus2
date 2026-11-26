@@ -31,9 +31,11 @@ let project = Project(
                 "com.apple.developer.applesignin": ["Default"],
             ]),
             dependencies: [
+                .target(name: "Splash"),
                 .target(name: "FocusTimer"),
                 .target(name: "SessionLog"),
                 .target(name: "Setting"),
+                .target(name: "Domain"),
                 .target(name: "Data"),
                 .external(name: "ComposableArchitecture"),
             ],
@@ -56,6 +58,7 @@ let project = Project(
             ],
             dependencies: [
                 .target(name: "HyperFocus"),
+                .target(name: "Splash"),
                 .target(name: "FocusTimer"),
                 .target(name: "SessionLog"),
                 .target(name: "Setting"),
@@ -78,6 +81,10 @@ let project = Project(
         
         // MARK: - Features
     ]
+    + Target.feature(
+        name: "Splash",
+        dependencies: [.target(name: "DesignSystem")]
+    )
     + Target.feature(
         name: "FocusTimer",
         dependencies: [.target(name: "Util")]
