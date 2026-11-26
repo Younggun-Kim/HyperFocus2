@@ -50,7 +50,7 @@ flowchart LR
 
     subgraph Core
         Util
-        CoreNetwork --> Moya["Moya / Alamofire"]
+        CoreNetwork --> Alamofire
     end
 
     App --> Presentation
@@ -83,7 +83,7 @@ flowchart LR
 | --- | --- | --- |
 | UI·상태 | SwiftUI, TCA | 기존 앱이 TCA로 작성돼 있어 화면을 옮기는 비용이 적습니다. 상태 변화를 `TestStore`로 액션 단위까지 검증할 수 있습니다. |
 | 의존성 주입 | swift-dependencies (`@DependencyClient`) | TCA와 같은 의존성 체계입니다. 계층 경계를 struct 클라이언트로 만들어 Example 앱과 테스트에서 mock으로 바꿔 끼웁니다. `bootstrap()`의 `prepareDependencies`도 여기에 기대고 있습니다. |
-| 네트워크 | Moya, Alamofire | 기존 앱의 API 정의(`TargetType`)를 그대로 옮기기 위해 Moya를 유지했습니다. Moya 플러그인으로는 요청을 재시도할 수 없어서, 토큰 갱신은 Alamofire `AuthenticationInterceptor`로 처리합니다. |
+| 네트워크 | Alamofire | 토큰 갱신과 재시도를 `AuthenticationInterceptor`로 처리합니다. 처음에는 기존 앱의 API 정의를 옮기려고 Moya를 함께 썼지만, 남은 역할이 stub과 플러그인뿐이어서 제거하고 `APIEndpoint`를 `URLRequest`로 직접 바꿉니다. |
 | 로컬 저장 | SwiftData (도입 예정) | 외부 의존성 없이 Apple 기본 프레임워크로 저장합니다. 최소 지원 버전을 iOS 18.0으로 정한 이유입니다. |
 | 테스트 | Swift Testing, XCTest | 유닛 테스트는 파라미터화와 `async` 테스트가 자연스러운 Swift Testing을 씁니다. UI 테스트는 Swift Testing이 지원하지 않아 XCTest를 씁니다. |
 | 프로젝트 | Tuist, mise | Tuist로 프로젝트를 코드로 선언하고 모듈 헬퍼, 바이너리 캐시, 선택적 테스트를 씁니다. mise는 Tuist 버전을 프로젝트 단위로 고정해 로컬과 CI가 같은 버전을 쓰게 합니다. |

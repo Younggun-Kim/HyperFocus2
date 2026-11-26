@@ -145,7 +145,6 @@ let project = Project(
             name: "CoreNetwork",
             path: "./Modules/Core/CoreNetwork",
             dependencies: [
-                .external(name: "Moya"),
                 .external(name: "Alamofire"),
             ]
         ),

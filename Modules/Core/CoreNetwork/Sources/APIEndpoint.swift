@@ -5,13 +5,13 @@
 
 import Foundation
 
-/// 바깥(Data)에 공개하는 HTTP 메서드. Moya 타입을 드러내지 않으려고 따로 둔다.
-public enum HTTPMethod: Sendable, Equatable {
-    case get
-    case post
-    case put
-    case patch
-    case delete
+/// 바깥(Data)에 공개하는 HTTP 메서드. Alamofire 타입을 드러내지 않으려고 따로 둔다.
+public enum HTTPMethod: String, Sendable, Equatable {
+    case get = "GET"
+    case post = "POST"
+    case put = "PUT"
+    case patch = "PATCH"
+    case delete = "DELETE"
 }
 
 /// API 하나를 기술한다. Data의 `DataSource/Remote`가 API마다 타입 하나로 채택한다.
@@ -20,7 +20,7 @@ public enum HTTPMethod: Sendable, Equatable {
 /// 본문을 쓰지 않는 API는 `EmptyResponse`로 둔다.
 ///
 /// 주소의 앞부분(baseURL)은 `APIService`가 붙인다. 여기서는 경로만 적는다.
-/// Moya `TargetType`으로 바꾸는 일은 CoreNetwork 안에서만 한다.
+/// 실제 요청(`URLRequest`)으로 바꾸는 일은 `APIService`가 한다.
 public protocol APIEndpoint<Response>: Sendable {
     /// 응답 봉투의 `data`에 들어 있는 타입
     associatedtype Response: Decodable & Sendable

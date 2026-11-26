@@ -4,14 +4,15 @@
 
 ## 경계
 
-- **Moya와 Alamofire를 import할 수 있는 곳은 이 모듈뿐이다.** 라이브러리를 교체할 때 이 모듈만 바뀌게 하기 위해서다. 바깥에는 Moya·Alamofire 타입이 드러나지 않는 API만 공개한다.
+- **Alamofire를 import할 수 있는 곳은 이 모듈뿐이다.** 라이브러리를 교체할 때 이 모듈만 바뀌게 하기 위해서다. 바깥에는 Alamofire 타입이 드러나지 않는 API만 공개한다.
 - async/await 지원은 이 모듈이 감싸서 제공한다.
-- 바깥에 공개하는 요청 단위는 `APIEndpoint`(경로, `HTTPMethod`, 본문, 인증 여부, 응답 타입 `Response`)다. Moya `TargetType`(`BaseTarget`)은 internal로 두고 `APIService`가 바꾼다.
+- 바깥에 공개하는 요청 단위는 `APIEndpoint`(경로, `HTTPMethod`, 본문, 인증 여부, 응답 타입 `Response`)다. `APIService`가 `URLRequest`로 바꿔 Alamofire `Session` 하나로 보낸다. `requiresAuth`가 `true`인 요청에만 토큰 인터셉터를 붙인다.
 - 응답 봉투(`APIResponse`)는 이 모듈이 연다(`APIResponse.open`). 2xx인데 봉투가 약속과 다르면(`data` 없음, `success == false`) `APIError.decodingError`다. `EmptyResponse`로 받으면 `data`나 본문이 없어도 성공이다.
 - `APIServiceProtocol`이 요구하는 것은 `requestData` 하나다. `request`는 extension이라, 가짜 구현도 실제와 같은 디코더와 봉투 규칙을 거친다.
 - 이 모듈을 링크하는 곳은 Data뿐이다. Feature·Domain에 `import CoreNetwork`가 생기면 `APIError`가 위로 새는 것이다.
 - API별 `APIEndpoint`와 DTO는 여기 두지 않는다. Data의 `DataSource/Remote`에 둔다.
-- (미적용) `Alamofire`는 Moya를 통해 간접으로 들어온다. 직접 import하므로 `Tuist/Package.swift`에 명시적으로 선언한다.
+- 응답은 직렬화기 없이 받는다(`request.response`). Alamofire의 async API(`serializingData` 등)는 실패한 요청을 인터셉터에 한 번 더 넘겨서, 세션 만료가 토큰 없음으로 덮인다.
+- 로깅은 `APIService`가 요청 전후에 `NetworkLog`로 남긴다. 헤더는 찍지 않고, 본문은 `.debug`에 `privacy: .private`로만 찍는다. 토큰 갱신 후 재시도는 요청 한 번으로 남는다.
 
 ## 에러
 
