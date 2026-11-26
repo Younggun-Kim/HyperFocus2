@@ -11,7 +11,7 @@ public struct SettingView: View {
     
     public var body: some View {
         VStack(spacing: 20) {
-            AppleLoginView()
+            AppleLoginView { store.send(.appleSignInCompleted($0)) }
                 .padding(.bottom, 40)
             
             VStack(spacing: 16) {
