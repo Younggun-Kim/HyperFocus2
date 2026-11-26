@@ -8,6 +8,7 @@
 - async/await 지원은 이 모듈이 감싸서 제공한다.
 - 바깥에 공개하는 요청 단위는 `APIEndpoint`(경로, `HTTPMethod`, 본문, 인증 여부, 응답 타입 `Response`)다. `APIService`가 `URLRequest`로 바꿔 Alamofire `Session` 하나로 보낸다. `requiresAuth`가 `true`인 요청에만 토큰 인터셉터를 붙인다.
 - 응답 봉투(`APIResponse`)는 이 모듈이 연다(`APIResponse.open`). 2xx인데 봉투가 약속과 다르면(`data` 없음, `success == false`) `APIError.decodingError`다. `EmptyResponse`로 받으면 `data`나 본문이 없어도 성공이다.
+- 공개 API는 던지지 않고 `Result<_, APIError>`를 돌려준다(`requestData`, `request`, `TokenManager`의 `refresh` 클로저). 이 모듈이 내는 실패는 `APIError`뿐이라는 것을 타입으로 보장한다.
 - `APIServiceProtocol`이 요구하는 것은 `requestData` 하나다. `request`는 extension이라, 가짜 구현도 실제와 같은 디코더와 봉투 규칙을 거친다.
 - 이 모듈을 링크하는 곳은 Data뿐이다. Feature·Domain에 `import CoreNetwork`가 생기면 `APIError`가 위로 새는 것이다.
 - API별 `APIEndpoint`와 DTO는 여기 두지 않는다. Data의 `DataSource/Remote`에 둔다.

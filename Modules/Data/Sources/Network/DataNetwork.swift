@@ -13,9 +13,9 @@ enum DataNetwork {
             storage: KeychainTokenStorage(),
             refresh: { token in
                 // refresh는 요청이 401을 받은 뒤에만 불리므로, 이때 `service`는 이미 만들어져 있다.
-                try await DataNetwork.service.request(
+                await DataNetwork.service.request(
                     AuthAPI.Refresh(refreshToken: token.refreshToken)
-                ).toAuthToken()
+                ).map { $0.toAuthToken() }
             },
             onSessionExpired: {
                 // TODO: 세션 만료를 Domain UseCase로 내보내 RootFeature가 처리하게 한다(계정 기능 PR).

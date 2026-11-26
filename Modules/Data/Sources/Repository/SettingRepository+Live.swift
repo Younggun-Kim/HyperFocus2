@@ -11,14 +11,14 @@ extension SettingRepository: @retroactive DependencyKey {
     static func live(service: any APIServiceProtocol) -> Self {
         Self(
             fetchSetting: {
-                try await convertingErrors("설정 조회") {
-                    try await service.request(SettingAPI.Fetch()).toEntity()
-                }
+                try await service.request(SettingAPI.Fetch())
+                    .orThrowDomainError("설정 조회")
+                    .toEntity()
             },
             updateSetting: { setting in
-                try await convertingErrors("설정 변경") {
-                    try await service.request(SettingAPI.Update(request: SettingRequestDTO(setting))).toEntity()
-                }
+                try await service.request(SettingAPI.Update(request: SettingRequestDTO(setting)))
+                    .orThrowDomainError("설정 변경")
+                    .toEntity()
             }
         )
     }

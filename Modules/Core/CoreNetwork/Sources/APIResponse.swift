@@ -41,33 +41,33 @@ public struct APIResponse<T: Decodable & Sendable>: Decodable, Sendable {
 extension APIResponse {
     /// 성공(2xx) 응답의 본문에서 봉투를 열어 `data`를 꺼낸다.
     ///
-    /// 2xx인데 봉투가 약속과 다르면 서버 계약 위반이므로 `APIError.decodingError`를 던진다.
+    /// 2xx인데 봉투가 약속과 다르면 서버 계약 위반이므로 `APIError.decodingError`다.
     /// - 봉투 형식이 아니다
     /// - `success`가 `false`다
     /// - `data`가 없다. 단, `EmptyResponse`로 받으면 본문이 비었거나 `data`가 없어도 성공이다.
     ///
     /// - Parameter path: 에러에 남겨 로그에서 어떤 API였는지 구분한다.
-    static func open(_ body: Data, path: String) throws(APIError) -> T {
+    static func open(_ body: Data, path: String) -> Result<T, APIError> {
         if body.isEmpty, let empty = EmptyResponse() as? T {
-            return empty
+            return .success(empty)
         }
 
         let envelope: APIResponse<T>
         do {
             envelope = try JSONDecoder.api.decode(APIResponse<T>.self, from: body)
         } catch {
-            throw .decodingError("\(path): \(String(describing: error))")
+            return .failure(.decodingError("\(path): \(String(describing: error))"))
         }
 
         guard envelope.success else {
-            throw .decodingError("\(path): 2xx인데 success가 false다 (message: \(envelope.message ?? "없음"))")
+            return .failure(.decodingError("\(path): 2xx인데 success가 false다 (message: \(envelope.message ?? "없음"))"))
         }
         if let data = envelope.data {
-            return data
+            return .success(data)
         }
         if let empty = EmptyResponse() as? T {
-            return empty
+            return .success(empty)
         }
-        throw .decodingError("\(path): 응답에 data가 없다")
+        return .failure(.decodingError("\(path): 응답에 data가 없다"))
     }
 }

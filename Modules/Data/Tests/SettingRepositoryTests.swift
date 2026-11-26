@@ -53,13 +53,4 @@ struct SettingRepositoryTests {
             try await repository.fetchSetting()
         }
     }
-
-    @Test func 알_수_없는_에러는_unknown으로_바꾼다() async {
-        struct Unexpected: Error {}
-        let repository = SettingRepository.live(service: FakeAPIService(.failure(Unexpected())))
-
-        await #expect(throws: DomainError.unknown) {
-            try await repository.fetchSetting()
-        }
-    }
 }

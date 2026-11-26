@@ -73,7 +73,7 @@ extension TokenManager {
     static func mock(storage: any TokenStorage) -> TokenManager {
         TokenManager(storage: storage) { _ in
             Issue.record("갱신하면 안 되는 테스트에서 갱신함")
-            return .new
+            return .success(.new)
         }
     }
 }

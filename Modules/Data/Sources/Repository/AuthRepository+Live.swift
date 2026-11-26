@@ -24,10 +24,8 @@ extension AuthRepository: @retroactive DependencyKey {
             _ endpoint: some APIEndpoint<TokenResponseDTO>,
             _ operation: String
         ) async throws {
-            try await convertingErrors(operation) {
-                let token = try await service.request(endpoint)
-                tokens.update(token.toAuthToken())
-            }
+            let token = try await service.request(endpoint).orThrowDomainError(operation)
+            tokens.update(token.toAuthToken())
         }
 
         return Self(

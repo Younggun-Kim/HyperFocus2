@@ -24,7 +24,7 @@ struct APIEndpointTests {
             configuration: .mock
         )
 
-        _ = try await service.request(endpoint)
+        _ = try await service.request(endpoint).get()
 
         return try #require(requests.value.first)
     }
