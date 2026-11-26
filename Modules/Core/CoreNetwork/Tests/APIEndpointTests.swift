@@ -56,7 +56,7 @@ struct APIEndpointTests {
         let json = #"{"success": true, "data": {"user_name": "yg"}, "message": null, "code": null}"#
         let service = APIService.stub(.networkResponse(200, Data(json.utf8)))
 
-        let response = try await service.request(StubEndpoint(), responseType: User.self)
+        let response = try await service.request(StubEndpoint())
 
         #expect(response == User(userName: "yg"))
     }

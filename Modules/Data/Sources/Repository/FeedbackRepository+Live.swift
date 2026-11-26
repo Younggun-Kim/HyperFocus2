@@ -22,8 +22,7 @@ extension FeedbackRepository: @retroactive DependencyKey {
                         deviceModel: device.deviceModel,
                         osVersion: device.osVersion
                     )
-                    // 응답 본문은 쓰지 않는다. 성공 여부만 본다.
-                    _ = try await service.request(FeedbackAPI.send(request), responseType: EmptyResponse.self)
+                    _ = try await service.request(FeedbackAPI.Send(request: request))
                 }
             }
         )

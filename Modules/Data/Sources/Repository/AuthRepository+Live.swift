@@ -20,9 +20,12 @@ extension AuthRepository: @retroactive DependencyKey {
         deviceID: @escaping @Sendable () async -> String?
     ) -> Self {
         /// 토큰을 받는 요청을 보내고, 받은 토큰으로 바꾼다.
-        @Sendable func issueToken(_ endpoint: AuthAPI, _ operation: String) async throws {
+        @Sendable func issueToken(
+            _ endpoint: some APIEndpoint<TokenResponseDTO>,
+            _ operation: String
+        ) async throws {
             try await convertingErrors(operation) {
-                let token = try await service.request(endpoint, responseType: TokenResponseDTO.self)
+                let token = try await service.request(endpoint)
                 tokens.update(token.toAuthToken())
             }
         }
@@ -34,13 +37,13 @@ extension AuthRepository: @retroactive DependencyKey {
                     Logger.data.error("익명 로그인 실패: 기기 식별자를 읽지 못했다")
                     throw DomainError.unknown
                 }
-                try await issueToken(.anonymous(AnonymousLoginRequestDTO(deviceId: deviceID)), "익명 로그인")
+                try await issueToken(AuthAPI.Anonymous(request: AnonymousLoginRequestDTO(deviceId: deviceID)), "익명 로그인")
             },
             linkApple: { request in
-                try await issueToken(.linkApple(AppleLinkRequestDTO(request)), "Apple 연동")
+                try await issueToken(AuthAPI.LinkApple(request: AppleLinkRequestDTO(request)), "Apple 연동")
             },
             signInWithApple: { request in
-                try await issueToken(.loginApple(AppleLoginRequestDTO(request)), "Apple 로그인")
+                try await issueToken(AuthAPI.LoginApple(request: AppleLoginRequestDTO(request)), "Apple 로그인")
             }
         )
     }
