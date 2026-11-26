@@ -9,7 +9,7 @@ import Foundation
 import Alamofire
 
 final class TokenAuthenticator: Authenticator {
-    typealias Refresh = @Sendable (AuthToken) async throws -> AuthToken
+    typealias Refresh = @Sendable (AuthToken) async -> Result<AuthToken, APIError>
 
     private let storage: any TokenStorage
     private let refresh: Refresh
@@ -41,16 +41,16 @@ final class TokenAuthenticator: Authenticator {
         completion: @escaping @Sendable (Result<AuthToken, any Error>) -> Void
     ) {
         Task {
-            do {
-                let token = try await refresh(credential)
+            switch await refresh(credential) {
+            case .success(let token):
                 storage.save(token)
                 completion(.success(token))
-            } catch where Self.isRefreshTokenRejected(error) {
+            case .failure(let error) where Self.isRefreshTokenRejected(error):
                 // completion보다 먼저 불러야 한다. 기다리던 요청이 끝나기 전에 토큰이 지워져 있어야
                 // 뒤이어 나가는 요청이 옛 토큰으로 다시 401을 받고 갱신을 또 시도하지 않는다.
                 onSessionExpired()
                 completion(.failure(APIError.sessionExpired))
-            } catch {
+            case .failure(let error):
                 completion(.failure(error))
             }
         }
@@ -71,8 +71,8 @@ final class TokenAuthenticator: Authenticator {
 
     /// 서버가 갱신 요청에 401/403으로 답했으면 refresh token이 무효다.
     /// 응답 자체가 없는 실패(오프라인, 타임아웃)는 여기에 해당하지 않는다.
-    private static func isRefreshTokenRejected(_ error: any Error) -> Bool {
-        guard case .httpError(let statusCode, _)? = error as? APIError else {
+    private static func isRefreshTokenRejected(_ error: APIError) -> Bool {
+        guard case .httpError(let statusCode, _) = error else {
             return false
         }
         return statusCode == 401 || statusCode == 403

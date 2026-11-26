@@ -13,17 +13,16 @@ extension FeedbackRepository: @retroactive DependencyKey {
     ) -> Self {
         Self(
             sendFeedback: { category, content in
-                try await convertingErrors("피드백 전송") {
-                    let device = device()
-                    let request = FeedbackRequestDTO(
-                        category: category.apiValue,
-                        content: content,
-                        appVersion: device.appVersion,
-                        deviceModel: device.deviceModel,
-                        osVersion: device.osVersion
-                    )
-                    _ = try await service.request(FeedbackAPI.Send(request: request))
-                }
+                let device = device()
+                let request = FeedbackRequestDTO(
+                    category: category.apiValue,
+                    content: content,
+                    appVersion: device.appVersion,
+                    deviceModel: device.deviceModel,
+                    osVersion: device.osVersion
+                )
+                _ = try await service.request(FeedbackAPI.Send(request: request))
+                    .orThrowDomainError("피드백 전송")
             }
         )
     }

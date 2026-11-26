@@ -6,7 +6,7 @@ import Foundation
 final class FakeAPIService: APIServiceProtocol, @unchecked Sendable {
     enum Reply {
         case json(String)
-        case failure(any Error)
+        case failure(APIError)
     }
 
     private let lock = NSLock()
@@ -21,11 +21,11 @@ final class FakeAPIService: APIServiceProtocol, @unchecked Sendable {
         lock.withLock { _endpoints }
     }
 
-    func requestData(_ endpoint: some APIEndpoint) async throws -> Data {
+    func requestData(_ endpoint: some APIEndpoint) async -> Result<Data, APIError> {
         lock.withLock { _endpoints.append(endpoint) }
         switch reply {
-        case let .json(json): return Data(json.utf8)
-        case let .failure(error): throw error
+        case let .json(json): return .success(Data(json.utf8))
+        case let .failure(error): return .failure(error)
         }
     }
 }

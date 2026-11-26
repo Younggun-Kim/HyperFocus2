@@ -15,17 +15,19 @@ import Foundation
 /// 가짜 구현이 실제와 다르게 동작할 수 없다.
 public protocol APIServiceProtocol: Sendable {
     /// 요청을 보내고 성공(2xx) 응답의 본문을 그대로 돌려준다.
-    func requestData(_ endpoint: some APIEndpoint) async throws -> Data
+    /// 실패는 던지지 않고 `APIError`로 돌려준다.
+    func requestData(_ endpoint: some APIEndpoint) async -> Result<Data, APIError>
 }
 
 public extension APIServiceProtocol {
     /// 요청을 보내고 응답 봉투(`APIResponse`)를 열어 `data`를 돌려준다.
     ///
-    /// 2xx인데 봉투가 약속과 다르면 `APIError.decodingError`를 던진다(`APIResponse.open`).
+    /// 2xx인데 봉투가 약속과 다르면 `APIError.decodingError`다(`APIResponse.open`).
     /// 본문을 쓰지 않는 API는 `EmptyResponse`로 받는다.
-    func request<E: APIEndpoint>(_ endpoint: E) async throws -> E.Response {
-        let data = try await requestData(endpoint)
-        return try APIResponse<E.Response>.open(data, path: endpoint.path)
+    func request<E: APIEndpoint>(_ endpoint: E) async -> Result<E.Response, APIError> {
+        await requestData(endpoint).flatMap { data in
+            APIResponse<E.Response>.open(data, path: endpoint.path)
+        }
     }
 }
 
@@ -45,13 +47,13 @@ public struct APIService: APIServiceProtocol {
         self.tokenManager = tokenManager
     }
 
-    /// 이 함수를 부른 Task가 취소되면 요청도 취소되고 `APIError.cancelled`를 던진다.
-    public func requestData(_ endpoint: some APIEndpoint) async throws -> Data {
+    /// 이 함수를 부른 Task가 취소되면 요청도 취소되고 `APIError.cancelled`를 돌려준다.
+    public func requestData(_ endpoint: some APIEndpoint) async -> Result<Data, APIError> {
         let urlRequest: URLRequest
         do {
             urlRequest = try endpoint.urlRequest(baseURL: baseURL)
         } catch {
-            throw APIError.decodingError("\(endpoint.path): 요청 본문 인코딩 실패 (\(String(describing: error)))")
+            return .failure(.decodingError("\(endpoint.path): 요청 본문 인코딩 실패 (\(String(describing: error)))"))
         }
         NetworkLog.willSend(urlRequest, endpoint: endpoint)
 
@@ -77,12 +79,12 @@ public struct APIService: APIServiceProtocol {
             // 2xx면 본문이 비어 있어도 그대로 돌려준다. 빈 본문을 어떻게 볼지는 `APIResponse.open`이 정한다.
             let data = body ?? Data()
             NetworkLog.didReceive(data, statusCode: response.response?.statusCode, endpoint: endpoint)
-            return data
+            return .success(data)
 
         case .failure(let error):
             let apiError = APIError.from(error, response: response.response, body: response.data)
             NetworkLog.didFail(apiError, body: response.data, endpoint: endpoint)
-            throw apiError
+            return .failure(apiError)
         }
     }
 }

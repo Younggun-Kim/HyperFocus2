@@ -12,7 +12,7 @@ struct APIServiceTests {
     @Test func 성공_응답을_snake_case로_디코딩한다() async throws {
         let service = APIService.responding(200, Self.userJSON)
 
-        let response = try await service.request(StubEndpoint<User>())
+        let response = try await service.request(StubEndpoint<User>()).get()
 
         #expect(response == User(userName: "yg"))
     }
@@ -22,7 +22,7 @@ struct APIServiceTests {
         let service = APIService.responding(500, json)
 
         let error = await #expect(throws: APIError.self) {
-            try await service.request(StubEndpoint<User>())
+            try await service.request(StubEndpoint<User>()).get()
         }
 
         guard case .httpError(let statusCode, let message) = error else {
@@ -37,7 +37,7 @@ struct APIServiceTests {
         let service = APIService.responding(200, "not json")
 
         let error = await #expect(throws: APIError.self) {
-            try await service.request(StubEndpoint<User>())
+            try await service.request(StubEndpoint<User>()).get()
         }
 
         guard case .decodingError = error else {
@@ -51,7 +51,7 @@ struct APIServiceTests {
         let service = APIService.failing(URLError(code))
 
         let error = await #expect(throws: APIError.self) {
-            try await service.request(StubEndpoint<User>())
+            try await service.request(StubEndpoint<User>()).get()
         }
 
         guard case .networkError = error else {
@@ -66,7 +66,7 @@ struct APIServiceTests {
         let service = APIService.responding(502, "<html><body>502 Bad Gateway</body></html>")
 
         let error = await #expect(throws: APIError.self) {
-            try await service.request(StubEndpoint<User>())
+            try await service.request(StubEndpoint<User>()).get()
         }
 
         guard case .httpError(let statusCode, let message) = error else {
@@ -82,7 +82,7 @@ struct APIServiceTests {
             let byte = Data([0xFF, 0xD8, 0x00])
             let service = APIService.responding(200, byte)
 
-            let response = try await service.requestData(StubEndpoint<User>())
+            let response = try await service.requestData(StubEndpoint<User>()).get()
 
             #expect(response == byte)
         }
@@ -92,7 +92,7 @@ struct APIServiceTests {
             let service = APIService.responding(500, json)
 
             let error = await #expect(throws: APIError.self) {
-                try await service.requestData(StubEndpoint<User>())
+                try await service.requestData(StubEndpoint<User>()).get()
             }
 
             guard case .httpError(let statusCode, let message) = error else {
@@ -109,7 +109,7 @@ struct APIServiceTests {
             let service = APIService.responding(500, body)
 
             let error = await #expect(throws: APIError.self) {
-                try await service.requestData(StubEndpoint<User>())
+                try await service.requestData(StubEndpoint<User>()).get()
             }
 
             guard case .httpError(let statusCode, let message) = error else {
@@ -131,7 +131,7 @@ struct APIServiceTests {
             let service = APIService.responding(200, json)
 
             let error = await #expect(throws: APIError.self) {
-                try await service.request(StubEndpoint<User>())
+                try await service.request(StubEndpoint<User>()).get()
             }
 
             guard case .decodingError(let message) = error else {
@@ -149,14 +149,14 @@ struct APIServiceTests {
         func EmptyResponse로_받으면_data가_없어도_성공한다(json: String) async throws {
             let service = APIService.responding(200, json)
 
-            _ = try await service.request(StubEndpoint<EmptyResponse>())
+            _ = try await service.request(StubEndpoint<EmptyResponse>()).get()
         }
 
         @Test(arguments: [200, 204])
         func EmptyResponse로_받으면_본문이_비어도_성공한다(statusCode: Int) async throws {
             let service = APIService.responding(statusCode, Data())
 
-            _ = try await service.request(StubEndpoint<EmptyResponse>())
+            _ = try await service.request(StubEndpoint<EmptyResponse>()).get()
         }
 
         @Test(arguments: [200, 204])
@@ -164,7 +164,7 @@ struct APIServiceTests {
             let service = APIService.responding(statusCode, Data())
 
             let error = await #expect(throws: APIError.self) {
-                try await service.request(StubEndpoint<User>())
+                try await service.request(StubEndpoint<User>()).get()
             }
 
             guard case .decodingError = error else {
@@ -178,7 +178,7 @@ struct APIServiceTests {
             let service = APIService.responding(200, json)
 
             let error = await #expect(throws: APIError.self) {
-                try await service.request(StubEndpoint<EmptyResponse>())
+                try await service.request(StubEndpoint<EmptyResponse>()).get()
             }
 
             guard case .decodingError(let message) = error else {
@@ -199,7 +199,7 @@ struct APIServiceTests {
 
             let task = _Concurrency.Task {
                 withUnsafeCurrentTask { $0?.cancel() }   // 요청 전에 스스로 취소
-                return try await service.request(StubEndpoint<User>(requiresAuth: requiresAuth))
+                return try await service.request(StubEndpoint<User>(requiresAuth: requiresAuth)).get()
             }
 
             let error = await #expect(throws: APIError.self) {
