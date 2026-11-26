@@ -35,6 +35,7 @@ let project = Project(
                 .target(name: "FocusTimer"),
                 .target(name: "SessionLog"),
                 .target(name: "Setting"),
+                .target(name: "Domain"),
                 .target(name: "Data"),
                 .external(name: "ComposableArchitecture"),
             ],
