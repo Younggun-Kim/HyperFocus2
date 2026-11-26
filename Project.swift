@@ -151,10 +151,7 @@ let project = Project(
         ),
         .moduleTests(
             name: "CoreNetwork",
-            path: "./Modules/Core/CoreNetwork",
-            dependencies: [
-                .external(name: "Moya"),
-            ]
+            path: "./Modules/Core/CoreNetwork"
         ),
         .module(
             name: "DesignSystem",

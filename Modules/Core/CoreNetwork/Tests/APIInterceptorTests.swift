@@ -23,9 +23,9 @@ struct APIInterceptorTests {
                 return (.mock(for: request, statusCode: 200), userJSON)
             }
             defer { MockURLProtocol.unregister(host) }
-            let service = APIService.mock(storage: InMemoryTokenStorage(.old))
+            let service = APIService.mock(host: host, storage: InMemoryTokenStorage(.old))
 
-            let response = try await service.request(StubTarget(host: host), responseType: User.self)
+            let response = try await service.request(StubEndpoint<User>())
 
             #expect(response == User(userName: "yg"))
             #expect(requests.value.map { $0.value(forHTTPHeaderField: "Authorization") } == ["Bearer old-access"])
@@ -38,9 +38,9 @@ struct APIInterceptorTests {
                 return (.mock(for: request, statusCode: 200), userJSON)
             }
             defer { MockURLProtocol.unregister(host) }
-            let service = APIService.mock(storage: InMemoryTokenStorage())
+            let service = APIService.mock(host: host, storage: InMemoryTokenStorage())
 
-            _ = try await service.request(StubTarget(host: host, requiresAuth: false), responseType: User.self)
+            _ = try await service.request(StubEndpoint<User>(requiresAuth: false))
 
             #expect(requests.value.count == 1)
             #expect(requests.value.first?.value(forHTTPHeaderField: "Authorization") == nil)
@@ -53,10 +53,10 @@ struct APIInterceptorTests {
                 return (.mock(for: request, statusCode: 200), userJSON)
             }
             defer { MockURLProtocol.unregister(host) }
-            let service = APIService.mock(storage: InMemoryTokenStorage())
+            let service = APIService.mock(host: host, storage: InMemoryTokenStorage())
 
             let error = await #expect(throws: APIError.self) {
-                try await service.request(StubTarget(host: host), responseType: User.self)
+                try await service.request(StubEndpoint<User>())
             }
 
             guard case .tokenNotFound = error else {
@@ -75,16 +75,16 @@ struct APIInterceptorTests {
             defer { MockURLProtocol.unregister(host) }
             let storage = InMemoryTokenStorage()
             let tokenManager = TokenManager.mock(storage: storage)
-            let service = APIService(tokenManager: tokenManager, configuration: .mock)
+            let service = APIService(host: host, tokenManager: tokenManager)
 
             tokenManager.update(.new)
-            _ = try await service.request(StubTarget(host: host), responseType: User.self)
+            _ = try await service.request(StubEndpoint<User>())
 
             #expect(storage.load() == .new)
             #expect(requests.value.first?.value(forHTTPHeaderField: "Authorization") == "Bearer new-access")
         }
 
-        /// 3단계에서 남긴 경로: 진행 중인 Alamofire 요청을 취소하면 `AFError.explicitlyCancelled`
+        /// 응답을 기다리는 중에 Task를 취소하면 요청도 취소된다.
         @Test func 진행_중인_요청을_취소하면_cancelled를_던진다() async throws {
             let (started, startedContinuation) = AsyncStream.makeStream(of: Void.self)
             let host = MockURLProtocol.register { request in
@@ -93,10 +93,10 @@ struct APIInterceptorTests {
                 return (.mock(for: request, statusCode: 200), userJSON)
             }
             defer { MockURLProtocol.unregister(host) }
-            let service = APIService.mock(storage: InMemoryTokenStorage(.old))
+            let service = APIService.mock(host: host, storage: InMemoryTokenStorage(.old))
 
             let task = _Concurrency.Task {
-                try await service.request(StubTarget(host: host), responseType: User.self)
+                try await service.request(StubEndpoint<User>())
             }
             for await _ in started { break }
             task.cancel()
@@ -120,14 +120,14 @@ struct APIInterceptorTests {
             let refreshCount = Locked(0)
             let storage = InMemoryTokenStorage(.old)
             let service = APIService(
+                host: host,
                 tokenManager: TokenManager(storage: storage) { _ in
                     refreshCount.withLock { $0 += 1 }
                     return .new
-                },
-                configuration: .mock
+                }
             )
 
-            let response = try await service.request(StubTarget(host: host), responseType: User.self)
+            let response = try await service.request(StubEndpoint<User>())
 
             #expect(response == User(userName: "yg"))
             #expect(refreshCount.value == 1)
@@ -140,18 +140,18 @@ struct APIInterceptorTests {
             defer { MockURLProtocol.unregister(host) }
             let refreshCount = Locked(0)
             let service = APIService(
+                host: host,
                 tokenManager: TokenManager(storage: InMemoryTokenStorage(.old)) { _ in
                     refreshCount.withLock { $0 += 1 }
                     try await _Concurrency.Task.sleep(for: .milliseconds(200))
                     return .new
-                },
-                configuration: .mock
+                }
             )
 
             try await withThrowingTaskGroup(of: Void.self) { group in
                 for _ in 0..<5 {
                     group.addTask {
-                        _ = try await service.request(StubTarget(host: host), responseType: User.self)
+                        _ = try await service.request(StubEndpoint<User>())
                     }
                 }
                 try await group.waitForAll()
@@ -177,9 +177,9 @@ struct APIInterceptorTests {
                 return (.mock(for: request, statusCode: 401), Data())
             }
             defer { MockURLProtocol.unregister(host) }
-            let service = APIService(tokenManager: tokenManager, configuration: .mock)
+            let service = APIService(host: host, tokenManager: tokenManager)
 
-            _ = try await service.request(StubTarget(host: host), responseType: User.self)
+            _ = try await service.request(StubEndpoint<User>())
 
             #expect(refreshCount.value == 0)
             #expect(requests.value.map { $0.value(forHTTPHeaderField: "Authorization") } == ["Bearer old-access", "Bearer new-access"])
@@ -208,10 +208,10 @@ struct APIInterceptorTests {
                 refresh: { _ in throw APIError.httpError(statusCode: statusCode, message: nil) },
                 onSessionExpired: { expiredCount.withLock { $0 += 1 } }
             )
-            let service = APIService(tokenManager: tokenManager, configuration: .mock)
+            let service = APIService(host: host, tokenManager: tokenManager)
 
             let error = await #expect(throws: APIError.self) {
-                try await service.request(StubTarget(host: host), responseType: User.self)
+                try await service.request(StubEndpoint<User>())
             }
 
             guard case .sessionExpired = error else {
@@ -235,10 +235,10 @@ struct APIInterceptorTests {
                 refresh: { _ in throw APIError.networkError("오프라인") },
                 onSessionExpired: { expiredCount.withLock { $0 += 1 } }
             )
-            let service = APIService(tokenManager: tokenManager, configuration: .mock)
+            let service = APIService(host: host, tokenManager: tokenManager)
 
             let error = await #expect(throws: APIError.self) {
-                try await service.request(StubTarget(host: host), responseType: User.self)
+                try await service.request(StubEndpoint<User>())
             }
 
             guard case .networkError = error else {
@@ -257,6 +257,7 @@ struct APIInterceptorTests {
             let expiredCount = Locked(0)
             let refreshCount = Locked(0)
             let service = APIService(
+                host: host,
                 tokenManager: TokenManager(
                     storage: InMemoryTokenStorage(.old),
                     refresh: { _ in
@@ -266,15 +267,14 @@ struct APIInterceptorTests {
                         throw APIError.httpError(statusCode: 401, message: nil)
                     },
                     onSessionExpired: { expiredCount.withLock { $0 += 1 } }
-                ),
-                configuration: .mock
+                )
             )
 
             let errors = await withTaskGroup(of: (any Error)?.self) { group in
                 for _ in 0..<5 {
                     group.addTask {
                         do {
-                            _ = try await service.request(StubTarget(host: host), responseType: User.self)
+                            _ = try await service.request(StubEndpoint<User>())
                             return nil
                         } catch {
                             return error
@@ -301,17 +301,17 @@ struct APIInterceptorTests {
             defer { MockURLProtocol.unregister(host) }
             let expiredCount = Locked(0)
             let service = APIService(
+                host: host,
                 tokenManager: TokenManager(
                     storage: InMemoryTokenStorage(.old),
                     refresh: { _ in throw APIError.httpError(statusCode: 401, message: nil) },
                     onSessionExpired: { expiredCount.withLock { $0 += 1 } }
-                ),
-                configuration: .mock
+                )
             )
-            _ = try? await service.request(StubTarget(host: host), responseType: User.self)
+            _ = try? await service.request(StubEndpoint<User>())
 
             let error = await #expect(throws: APIError.self) {
-                try await service.request(StubTarget(host: host), responseType: User.self)
+                try await service.request(StubEndpoint<User>())
             }
 
             guard case .tokenNotFound = error else {
@@ -332,6 +332,7 @@ struct APIInterceptorTests {
             let refreshCount = Locked(0)
             let expiredCount = Locked(0)
             let service = APIService(
+                host: host,
                 tokenManager: TokenManager(
                     storage: InMemoryTokenStorage(.old),
                     refresh: { _ in
@@ -339,12 +340,11 @@ struct APIInterceptorTests {
                         return .new
                     },
                     onSessionExpired: { expiredCount.withLock { $0 += 1 } }
-                ),
-                configuration: .mock
+                )
             )
 
             let error = await #expect(throws: APIError.self) {
-                try await service.request(StubTarget(host: host), responseType: User.self)
+                try await service.request(StubEndpoint<User>())
             }
 
             guard case .httpError(let statusCode, _) = error else {
@@ -363,36 +363,5 @@ struct APIInterceptorTests {
                 return (.mock(for: request, statusCode: 401), Data())
             }
         }
-    }
-}
-
-final class Locked<Value: Sendable>: Sendable {
-    private let mutex: Mutex<Value>
-
-    init(_ value: Value) {
-        mutex = Mutex(value)
-    }
-
-    var value: Value {
-        mutex.withLock { $0 }
-    }
-
-    func withLock(_ body: (inout Value) -> Void) {
-        mutex.withLock { body(&$0) }
-    }
-}
-
-extension TokenManager {
-    static func mock(storage: any TokenStorage) -> TokenManager {
-        TokenManager(storage: storage) { _ in
-            Issue.record("갱신하면 안 되는 테스트에서 갱신함")
-            return .new
-        }
-    }
-}
-
-extension APIService {
-    static func mock(storage: any TokenStorage) -> APIService {
-        APIService(tokenManager: .mock(storage: storage), configuration: .mock)
     }
 }

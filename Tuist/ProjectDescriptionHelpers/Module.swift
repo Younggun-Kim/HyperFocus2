@@ -35,7 +35,7 @@ extension Target {
 
     /// `module(name:path:)`로 만든 모듈의 단위 테스트 타깃. `{path}/Tests`를 쓴다.
     ///
-    /// - `dependencies`: 테스트 코드가 직접 import하는 외부 의존성 (예: stub provider를 만들려면 Moya)
+    /// - `dependencies`: 테스트 코드가 직접 import하는 외부 의존성 (없으면 생략)
     public static func moduleTests(
         name: String,
         path: String,

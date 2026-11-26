@@ -74,21 +74,9 @@ public struct APIService: APIServiceProtocol, @unchecked Sendable {
     }
     
     public func requestData(_ endpoint: some APIEndpoint) async throws -> Data {
-        try await requestData(EndpointTarget(baseURL: baseURL, endpoint: endpoint))
+        try await send(EndpointTarget(baseURL: baseURL, endpoint: endpoint))
     }
 
-    /// CoreNetwork 안(테스트 포함)에서 `BaseTarget`을 직접 보낼 때 쓴다.
-    func request<T: BaseTarget, D: Decodable & Sendable>(
-        _ target: T,
-        responseType: D.Type
-    ) async throws -> D {
-        try APIResponse<D>.open(try await send(target), path: target.path)
-    }
-    
-    func requestData<T: BaseTarget>(_ target: T) async throws -> Data {
-        try await send(target)
-    }
-    
     /// 요청 하나의 취소 상태. `send`의 operation과 `onCancel`이 함께 본다.
     private enum RequestState {
         /// 아직 요청을 보내지 않았고, 취소도 되지 않음
