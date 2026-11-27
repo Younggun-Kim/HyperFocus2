@@ -24,6 +24,9 @@ struct RootView: View {
         .onAppear {
             store.send(.view(.onAppear))
         }
+        .task {
+            await store.send(.view(.task)).finish()
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 store.send(.view(.sceneActivated))

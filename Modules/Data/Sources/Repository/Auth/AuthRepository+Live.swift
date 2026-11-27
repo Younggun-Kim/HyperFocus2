@@ -8,16 +8,19 @@ extension AuthRepository: @retroactive DependencyKey {
     public static let liveValue = live(
         service: DataNetwork.service,
         tokens: .manager(DataNetwork.tokenManager),
-        deviceID: { await DeviceInfo.vendorID }
+        deviceID: { await DeviceInfo.vendorID },
+        sessionExpired: { DataNetwork.sessionExpiry.stream() }
     )
 
     /// - Parameters:
     ///   - tokens: 받은 토큰을 넣는 곳. 키체인만 바꾸면 인터셉터가 옛 토큰을 계속 붙이므로 `TokenManager`를 거친다.
     ///   - deviceID: 익명 로그인 때마다 읽는다.
+    ///   - sessionExpired: 세션 만료 스트림. 만료는 `TokenManager`가 알리므로 그대로 넘긴다.
     static func live(
         service: any APIServiceProtocol,
         tokens: TokenAccess,
-        deviceID: @escaping @Sendable () async -> String?
+        deviceID: @escaping @Sendable () async -> String?,
+        sessionExpired: @escaping @Sendable () -> AsyncStream<Void> = { AsyncStream { $0.finish() } }
     ) -> Self {
         /// 토큰을 받는 요청을 보내고, 받은 토큰으로 바꾼다.
         @Sendable func issueToken(
@@ -67,6 +70,7 @@ extension AuthRepository: @retroactive DependencyKey {
                 }
                 return result
             },
+            sessionExpired: sessionExpired,
         )
     }
 }

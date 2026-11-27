@@ -210,6 +210,44 @@ struct RootFeatureTests {
         #expect(signedIn.value)
     }
 
+    // MARK: - 세션 만료
+
+    @Test func 세션이_만료되면_로그아웃처럼_타이머_탭으로_돌아가고_익명_계정을_다시_받는다() async {
+        var state = RootFeature.State()
+        state.isSplashFinished = true
+        state.isSignInChecked = true
+        state.selectedTab = .log
+        state.$profile.withLock { $0 = .mock }
+        state.logPath.append(.setting(SettingFeature.State(profile: state.$profile)))
+        let (events, expire) = AsyncStream<Void>.makeStream()
+        let signedIn = LockIsolated(false)
+        let store = TestStore(initialState: state) {
+            RootFeature()
+        } withDependencies: {
+            $0.observeSessionExpiredUseCase.execute = { events }
+            $0.ensureSignedInUseCase.execute = {
+                signedIn.setValue(true)
+                return .success(())
+            }
+            $0.fetchProfileUseCase.execute = { .success(.mock) }
+        }
+
+        let task = await store.send(.view(.task))
+        expire.yield()
+        await store.receive(\.effect.sessionExpired) {
+            $0.$profile.withLock { $0 = nil }
+            $0.logPath = StackState()
+            $0.selectedTab = .timer
+        }
+        await store.receive(\.effect.fetchProfileResponse) {
+            $0.$profile.withLock { $0 = .mock }
+        }
+        #expect(signedIn.value)
+
+        // 화면이 사라지면 구독도 끝난다.
+        await task.cancel()
+    }
+
     // Home 구조로 바꾸면서 타이머 종료 → 기록 다시 불러오기 연결이 끊겼다.
     // FocusHome이 FocusTimer의 delegate를 Root로 올리면 이 테스트를 다시 작성한다.
     @Test(.disabled("Home 구조에서 sessionFinished delegate 재연결 전까지"))

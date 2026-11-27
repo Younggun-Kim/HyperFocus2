@@ -62,6 +62,8 @@ struct RootFeature {
         @CasePathable
         enum ViewAction {
             case onAppear
+            /// 화면이 살아 있는 동안 이어지는 일(세션 만료 구독)을 시작한다.
+            case task
             case tabSelected(Tab)
             /// 앱이 다시 활성 상태가 됐다.
             case sceneActivated
@@ -71,11 +73,18 @@ struct RootFeature {
         @CasePathable
         enum EffectAction {
             case fetchProfileResponse(Result<Profile, DomainError>)
+            /// refresh token이 거절돼 토큰이 지워졌다.
+            case sessionExpired
         }
     }
 
     @Dependency(\.ensureSignedInUseCase) var ensureSignedInUseCase
     @Dependency(\.fetchProfileUseCase) var fetchProfileUseCase
+    @Dependency(\.observeSessionExpiredUseCase) var observeSessionExpiredUseCase
+
+    enum CancelID {
+        case signIn
+    }
 
     var body: some ReducerOf<Self> {
         Scope(state: \.splash, action: \.splash) { SplashFeature() }
@@ -120,6 +129,9 @@ struct RootFeature {
         case .onAppear:
             return ensureSignedIn()
 
+        case .task:
+            return observeSessionExpired()
+
         case .sceneActivated:
             guard state.needsSignInRetry else { return .none }
             state.needsSignInRetry = false
@@ -145,6 +157,11 @@ struct RootFeature {
                 state.needsSignInRetry = true
             }
             return .none
+
+        case .sessionExpired:
+            // 로그아웃과 같은 흐름이다. 보던 계정 화면을 닫고 익명 계정으로 다시 시작한다.
+            state.resetForLogout()
+            return ensureSignedIn()
         }
     }
 
@@ -156,6 +173,17 @@ struct RootFeature {
                 await send(.effect(.fetchProfileResponse(fetchProfileUseCase.execute())))
             case let .failure(error):
                 await send(.effect(.fetchProfileResponse(.failure(error))))
+            }
+        }
+        // 로그아웃과 세션 만료가 겹쳐도 익명 로그인은 한 번만 보낸다.
+        .cancellable(id: CancelID.signIn, cancelInFlight: true)
+    }
+
+    /// 앱이 살아 있는 동안 세션 만료를 받는다. 뷰의 `.task`가 끝나면 함께 끝난다.
+    private func observeSessionExpired() -> Effect<Action> {
+        .run { send in
+            for await _ in observeSessionExpiredUseCase.execute() {
+                await send(.effect(.sessionExpired))
             }
         }
     }
