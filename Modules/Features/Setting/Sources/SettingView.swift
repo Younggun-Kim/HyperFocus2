@@ -11,7 +11,7 @@ public struct SettingView: View {
     
     public var body: some View {
         VStack(spacing: 20) {
-            AppleLoginView(email: store.email) { store.send(.appleSignInCompleted($0)) }
+            AppleLoginView(email: store.email) { store.send(.view(.appleSignInCompleted($0))) }
                 .padding(.bottom, 40)
             
             VStack(spacing: 16) {
@@ -33,7 +33,7 @@ public struct SettingView: View {
                 
                 ForEach(SettingMenuType.AboutUs.allCases, id: \.self) { item in
                     Button {
-                        store.send(.aboutUsTapped(item))
+                        store.send(.view(.aboutUsTapped(item)))
                     } label: {
                         SettingMenu(type: .aboutUs(item)) {
                             Image(systemName: "chevron.right")
@@ -49,7 +49,7 @@ public struct SettingView: View {
             if store.email != nil {
                 HStack(spacing: 30) {
                     Button(action: {
-                        store.send(.logoutTapped)
+                        store.send(.view(.logoutTapped))
                     }) {
                         Text("Sign Out")
                             .font(.caption)
@@ -73,7 +73,7 @@ public struct SettingView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignSystemAsset.Colors.bgPrimary.swiftUIColor.ignoresSafeArea())
-        .onAppear { store.send(.onAppear) }
+        .onAppear { store.send(.view(.onAppear)) }
         .alert($store.scope(state: \.destination?.alert, action: \.destination.alert))
         .sheet(isPresented: webPageBinding) {
             if let url = store.destination?.webPage {
@@ -109,7 +109,7 @@ public struct SettingView: View {
     private func binding(_ type: SettingMenuType.DeviceSetting) -> Binding<Bool> {
         Binding(
             get: { store.setting[type] },
-            set: { store.send(.deviceSettingChanged(type: type, isOn: $0)) }
+            set: { store.send(.view(.deviceSettingChanged(type: type, isOn: $0))) }
         )
     }
 }

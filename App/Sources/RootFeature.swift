@@ -152,4 +152,3 @@ struct RootFeature {
 }
 
 extension RootFeature.LogPath.State: Equatable {}
-extension RootFeature.LogPath.Action: Equatable {}

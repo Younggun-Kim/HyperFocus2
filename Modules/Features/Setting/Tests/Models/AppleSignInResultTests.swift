@@ -38,6 +38,8 @@ struct AppleSignInResultTests {
     }
 }
 
+/// `Result<Void, _>`의 `.success`/`.failure`까지 내려가는 key path는 Swift 6.4.2 컴파일러가 IRGen에서 크래시한다.
+/// 그래서 `\.effect.signInResponse`까지만 맞추고 결과는 상태 변화로 검증한다.
 @MainActor
 struct SettingAppleSignInTests {
     private let credential = AppleCredential(
@@ -55,13 +57,13 @@ struct SettingAppleSignInTests {
             }
         }
 
-        await store.send(.appleSignInCompleted(.authorized(credential))) {
+        await store.send(.view(.appleSignInCompleted(.authorized(credential)))) {
             $0.isSigningIn = true
         }
-        await store.receive(.appleSignInSucceeded) {
+        await store.receive(\.effect.signInResponse) {
             $0.isSigningIn = false
         }
-        await store.receive(.delegate(.accountChanged))
+        await store.receive(\.delegate.accountChanged)
         #expect(received.value == credential.signInRequest)
     }
 
@@ -72,10 +74,10 @@ struct SettingAppleSignInTests {
             $0.signInWithAppleUseCase.execute = { _ in .failure(.offline) }
         }
 
-        await store.send(.appleSignInCompleted(.authorized(credential))) {
+        await store.send(.view(.appleSignInCompleted(.authorized(credential)))) {
             $0.isSigningIn = true
         }
-        await store.receive(.appleSignInFailed(.offline)) {
+        await store.receive(\.effect.signInResponse) {
             $0.isSigningIn = false
             $0.destination = .alert(AlertState.appleSignInFailure(.offline)!)
         }
@@ -88,10 +90,10 @@ struct SettingAppleSignInTests {
             $0.signInWithAppleUseCase.execute = { _ in .failure(.cancelled) }
         }
 
-        await store.send(.appleSignInCompleted(.authorized(credential))) {
+        await store.send(.view(.appleSignInCompleted(.authorized(credential)))) {
             $0.isSigningIn = true
         }
-        await store.receive(.appleSignInFailed(.cancelled)) {
+        await store.receive(\.effect.signInResponse) {
             $0.isSigningIn = false
         }
     }
@@ -103,7 +105,7 @@ struct SettingAppleSignInTests {
             SettingFeature()
         }
 
-        await store.send(.appleSignInCompleted(.authorized(credential)))
+        await store.send(.view(.appleSignInCompleted(.authorized(credential))))
     }
 
     @Test func 토큰이나_코드가_없으면_요청하지_않고_알림을_띄운다() async {
@@ -114,7 +116,7 @@ struct SettingAppleSignInTests {
             SettingFeature()
         }
 
-        await store.send(.appleSignInCompleted(.authorized(noCode))) {
+        await store.send(.view(.appleSignInCompleted(.authorized(noCode)))) {
             $0.destination = .alert(AlertState.appleSignInFailure(.unknown)!)
         }
     }
@@ -124,7 +126,7 @@ struct SettingAppleSignInTests {
             SettingFeature()
         }
 
-        await store.send(.appleSignInCompleted(.canceled))
+        await store.send(.view(.appleSignInCompleted(.canceled)))
     }
 
     @Test func Apple_인증이_실패하면_알림을_띄운다() async {
@@ -132,7 +134,7 @@ struct SettingAppleSignInTests {
             SettingFeature()
         }
 
-        await store.send(.appleSignInCompleted(.failed(code: ASAuthorizationError.Code.failed.rawValue))) {
+        await store.send(.view(.appleSignInCompleted(.failed(code: ASAuthorizationError.Code.failed.rawValue)))) {
             $0.destination = .alert(AlertState.appleSignInFailure(.unknown)!)
         }
     }
