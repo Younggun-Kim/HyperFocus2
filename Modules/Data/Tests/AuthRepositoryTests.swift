@@ -1,6 +1,7 @@
 import CoreNetwork
 import Dependencies
 import Domain
+import Foundation
 import Testing
 @testable import Data
 
@@ -113,5 +114,80 @@ struct AuthRepositoryTests {
             try await repository(service, stored: stored).linkApple(request).get()
         }
         #expect(stored.value == nil)
+    }
+
+    // MARK: - 프로필 조회
+
+    /// 서버 응답과 같은 모양. 식별자와 email은 가짜 값이다.
+    private func profileJSON(provider: String) -> String {
+        """
+        {
+          "success": true,
+          "data": {
+            "userId": "00000000-0000-0000-0000-000000000001",
+            "email": "test@example.com",
+            "name": "테스트",
+            "profileImageUrl": null,
+            "provider": "\(provider)",
+            "role": "USER",
+            "status": "ACTIVE",
+            "lastLoginAt": "2026-11-20T05:00:14",
+            "createdAt": "2026-11-19T05:00:14",
+            "profileImageUrlOptional": null
+          }
+        }
+        """
+    }
+
+    @Test func 프로필_조회는_토큰을_붙여_보내고_응답을_Entity로_바꾼다() async throws {
+        let service = FakeAPIService(.json(profileJSON(provider: "APPLE")))
+
+        let profile = try await repository(service, stored: LockIsolated(issued)).fetchProfile().get()
+
+        let endpoint = try #require(service.endpoints.first as? AuthAPI.Me)
+        #expect(endpoint.path == "/api/v1/auth/me")
+        #expect(endpoint.method == .get)
+        #expect(endpoint.requiresAuth == true)
+        #expect(profile == Profile(
+            userId: "00000000-0000-0000-0000-000000000001",
+            email: "test@example.com",
+            name: "테스트",
+            profileImageUrl: nil,
+            provider: .apple,
+            role: "USER",
+            status: "ACTIVE",
+            lastLoginAt: try Date("2026-11-20T05:00:14Z", strategy: .iso8601),
+            createdAt: try Date("2026-11-19T05:00:14Z", strategy: .iso8601),
+            profileImageUrlOptional: nil
+        ))
+    }
+
+    @Test(arguments: [
+        ("APPLE", AccountProvider.apple, true),
+        ("ANONYMOUS", AccountProvider.anonymous, false),
+    ])
+    func 서버의_provider를_Domain_값으로_바꾼다(serverKey: String, provider: AccountProvider, isAppleUser: Bool) async throws {
+        let service = FakeAPIService(.json(profileJSON(provider: serverKey)))
+
+        let profile = try await repository(service, stored: LockIsolated(issued)).fetchProfile().get()
+
+        #expect(profile.provider == provider)
+        #expect(profile.isAppleUser == isAppleUser)
+    }
+
+    @Test func 모르는_provider면_unknown을_돌려준다() async {
+        let service = FakeAPIService(.json(profileJSON(provider: "GOOGLE")))
+
+        await #expect(throws: DomainError.unknown) {
+            try await repository(service, stored: LockIsolated(issued)).fetchProfile().get()
+        }
+    }
+
+    @Test func 프로필_조회가_인증_실패면_unauthorized를_돌려준다() async {
+        let service = FakeAPIService(.failure(APIError.httpError(statusCode: 401, message: nil)))
+
+        await #expect(throws: DomainError.unauthorized) {
+            try await repository(service, stored: LockIsolated(issued)).fetchProfile().get()
+        }
     }
 }
