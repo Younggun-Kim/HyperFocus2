@@ -5,6 +5,12 @@ import os
 
 @Reducer
 public struct SettingFeature {
+
+    @Dependency(\.fetchSettingUseCase) var fetchSettingUseCase
+    @Dependency(\.signInWithAppleUseCase) var signInWithAppleUseCase
+    @Dependency(\.updateSettingUseCase) var updateSettingUseCase
+    @Dependency(\.logoutUseCase) var logoutUseCase
+
     /// 설정 화면에서 띄우는 시트.
     @Reducer
     public enum Destination {
@@ -40,7 +46,7 @@ public struct SettingFeature {
         }
     }
 
-    public enum Action: Equatable {
+    public enum Action {
         case onAppear
         case deviceSettingChanged(type: SettingMenuType.DeviceSetting, isOn: Bool)
         case aboutUsTapped(SettingMenuType.AboutUs)
@@ -51,13 +57,22 @@ public struct SettingFeature {
         case settingLoadFailed(DomainError)
         case settingSaved(AppSetting)
         case settingSaveFailed(DomainError)
+        case logoutTapped
         case destination(PresentationAction<Destination.Action>)
         case delegate(Delegate)
+        case effect(Effect)
 
         @CasePathable
-        public enum Delegate: Equatable {
+        public enum Delegate {
             /// 로그인된 계정이 바뀌었다.
             case accountChanged
+
+            case logout
+        }
+
+        @CasePathable
+        public enum Effect {
+            case logoutResponse(Result<Void, DomainError>)
         }
     }
 
@@ -66,11 +81,6 @@ public struct SettingFeature {
         case save
         case signIn
     }
-
-    @Dependency(\.fetchSettingUseCase) var fetchSettingUseCase
-    @Dependency(\.signInWithAppleUseCase) var signInWithAppleUseCase
-    @Dependency(\.updateSettingUseCase) var updateSettingUseCase
-
     public init() {}
 
     public var body: some ReducerOf<Self> {
@@ -98,7 +108,7 @@ public struct SettingFeature {
                         case .failure(let error): await send(.settingSaveFailed(error))
                         }
                     }
-                    .cancellable(id: CancelID.save, cancelInFlight: true)
+                        .cancellable(id: CancelID.save, cancelInFlight: true)
                 )
 
             case let .settingLoaded(setting), let .settingSaved(setting):
@@ -175,9 +185,24 @@ public struct SettingFeature {
 
             case .destination, .delegate:
                 return .none
+
+            case .logoutTapped:
+                return .run { send in
+                    await send(.effect(.logoutResponse(logoutUseCase.execute())))
+                }
+
+            case .effect(let action):
+                return effectAction(&state, action)
             }
         }
         .ifLet(\.$destination, action: \.destination)
+    }
+
+    func effectAction(_ state: inout State, _ action: Action.Effect) -> Effect<Action> {
+        switch action {
+        case .logoutResponse:
+            return .send(.delegate(.logout))
+        }
     }
 }
 

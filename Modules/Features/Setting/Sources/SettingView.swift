@@ -49,7 +49,7 @@ public struct SettingView: View {
             if store.email != nil {
                 HStack(spacing: 30) {
                     Button(action: {
-                    
+                        store.send(.logoutTapped)
                     }) {
                         Text("Sign Out")
                             .font(.caption)

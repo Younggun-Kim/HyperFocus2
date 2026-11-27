@@ -89,6 +89,14 @@ struct RootFeature {
             case .logPath(.element(id: _, action: .setting(.delegate(.accountChanged)))):
                 return fetchProfile()
 
+            case .logPath(.element(id: _, action: .setting(.delegate(.logout)))):
+
+                state.$profile.withLock { $0 = nil }
+                state.logPath.removeAll()
+
+                // TODO: 토큰 삭제와 익명로그인처리?
+                return .none
+
             case .splash, .timer, .log, .logPath:
                 return .none
 
@@ -134,4 +142,4 @@ struct RootFeature {
 }
 
 extension RootFeature.LogPath.State: Equatable {}
-extension RootFeature.LogPath.Action: Equatable {}
+extension RootFeature.LogPath.Action {}
