@@ -1,36 +1,24 @@
-//
-//  AppleLoginView.swift
-//  Setting
-//
-//  Created by 김영건 on 11/25/26.
-//
-
-import Foundation
-import SwiftUI
-import DesignSystem
 import AuthenticationServices
+import DesignSystem
+import SwiftUI
 
-
+/// 설정 화면 맨 위의 계정 카드. 로그인 전에는 Apple 로그인 버튼을, 로그인 후에는 email을 보여 준다.
 struct AppleLoginView: View {
-    
     var email: String?
     var onCompletion: (AppleSignInResult) -> Void = { _ in }
 
     var body: some View {
-        if email == nil {
-            anonymousUser
+        if let email {
+            signedInCard(email: email)
         } else {
-            appleUser
+            signInPrompt
         }
     }
-    
-    var anonymousUser: some View {
+
+    private var signInPrompt: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                VStack(
-                    alignment: .leading,
-                    spacing: 5,
-                ) {
+                VStack(alignment: .leading, spacing: 5) {
                     Text("Don't lose your journey")
                         .font(.body.bold())
                         .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
@@ -55,22 +43,16 @@ struct AppleLoginView: View {
             .cornerRadius(10)
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 16)
-        .padding(.top, 20)
-        .padding(.bottom, 24)
-        .background {
-            RoundedRectangle(cornerRadius: 24)
-                .fill(DesignSystemAsset.Colors.systemLightGray.swiftUIColor)
-        }
+        .padding(EdgeInsets(top: 20, leading: 16, bottom: 24, trailing: 16))
+        .settingCard()
     }
-    
-    var appleUser: some View {
-        
+
+    private func signedInCard(email: String) -> some View {
         VStack(alignment: .leading) {
             Text("Email")
                 .font(.caption)
                 .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
-            Text(email ?? "")
+            Text(email)
                 .font(.title.bold())
                 .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
                 .padding(.bottom, 35)
@@ -82,20 +64,21 @@ struct AppleLoginView: View {
                 .background(DesignSystemAsset.Colors.bgPrimary.swiftUIColor)
                 .cornerRadius(20)
         }
-        .frame(
-            maxWidth: .infinity,
-            alignment: .leading
-        )
-        .padding(
-            .init(top: 20, leading: 16, bottom: 25, trailing: 16)
-        )
-        .background {
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(EdgeInsets(top: 20, leading: 16, bottom: 25, trailing: 16))
+        .settingCard()
+    }
+}
+
+private extension View {
+    /// 계정 카드의 둥근 회색 배경.
+    func settingCard() -> some View {
+        background {
             RoundedRectangle(cornerRadius: 24)
                 .fill(DesignSystemAsset.Colors.systemLightGray.swiftUIColor)
         }
     }
 }
-
 
 #Preview("Theme - Light") {
     VStack {

@@ -99,24 +99,8 @@ public struct FeedbackFeature {
 }
 
 extension AlertState where Action == FeedbackFeature.Action.Alert {
-    /// Domain 에러를 사용자 문구로 바꾼다. 취소면 알리지 않으므로 nil.
-    /// 입력한 내용은 그대로 두므로 다시 보내면 된다.
+    /// 전송 실패 알림. 입력한 내용은 그대로 두므로 다시 보내면 된다.
     static func sendFailure(_ error: DomainError) -> Self? {
-        let message: String
-        switch error {
-        case .cancelled:
-            return nil
-        case .offline:
-            message = "Please check your internet connection."
-        case .unauthorized, .notFound, .invalid, .conflict, .unknown:
-            message = "Please try again in a moment."
-        }
-        return AlertState {
-            TextState("Failed to send feedback.")
-        } actions: {
-            ButtonState(role: .cancel) { TextState("OK") }
-        } message: {
-            TextState(message)
-        }
+        .failure(title: "Failed to send feedback.", error: error)
     }
 }

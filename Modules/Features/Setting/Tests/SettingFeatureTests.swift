@@ -39,8 +39,8 @@ struct SettingFeatureTests {
             $0.fetchSettingUseCase.execute = { [stored] in .success(stored) }
         }
 
-        await store.send(.onAppear)
-        await store.receive(.settingLoaded(stored)) {
+        await store.send(.view(.onAppear))
+        await store.receive(\.effect.fetchSettingResponse.success, stored) {
             $0.setting = self.stored
             $0.savedSetting = self.stored
         }
@@ -53,9 +53,9 @@ struct SettingFeatureTests {
             $0.fetchSettingUseCase.execute = { .failure(.offline) }
         }
 
-        await store.send(.onAppear)
-        await store.receive(.settingLoadFailed(.offline)) {
-            $0.destination = .alert(AlertState.settingFailure(.offline, action: .load)!)
+        await store.send(.view(.onAppear))
+        await store.receive(\.effect.fetchSettingResponse.failure, .offline) {
+            $0.destination = .alert(AlertState.settingLoadFailure(.offline)!)
         }
         #expect(store.state.setting == .default)
     }
@@ -68,8 +68,8 @@ struct SettingFeatureTests {
             $0.fetchSettingUseCase.execute = { .failure(error) }
         }
 
-        await store.send(.onAppear)
-        await store.receive(.settingLoadFailed(error))
+        await store.send(.view(.onAppear))
+        await store.receive(\.effect.fetchSettingResponse.failure, error)
     }
 
     // MARK: - 변경
@@ -87,10 +87,10 @@ struct SettingFeatureTests {
         var expected = stored
         expected.hapticEnabled = true
 
-        await store.send(.deviceSettingChanged(type: .haptic, isOn: true)) {
+        await store.send(.view(.deviceSettingChanged(type: .haptic, isOn: true))) {
             $0.setting = expected
         }
-        await store.receive(.settingSaved(expected)) {
+        await store.receive(\.effect.updateSettingResponse.success, expected) {
             $0.savedSetting = expected
         }
         #expect(saved.value == expected)
@@ -106,10 +106,10 @@ struct SettingFeatureTests {
         var expected = AppSetting.default
         expected[type] = true
 
-        await store.send(.deviceSettingChanged(type: type, isOn: true)) {
+        await store.send(.view(.deviceSettingChanged(type: type, isOn: true))) {
             $0.setting = expected
         }
-        await store.receive(.settingSaved(expected)) {
+        await store.receive(\.effect.updateSettingResponse.success, expected) {
             $0.savedSetting = expected
         }
     }
@@ -119,7 +119,7 @@ struct SettingFeatureTests {
             SettingFeature()
         }
 
-        await store.send(.deviceSettingChanged(type: .sound, isOn: true))
+        await store.send(.view(.deviceSettingChanged(type: .sound, isOn: true)))
     }
 
     @Test func 저장에_실패하면_마지막으로_저장된_값으로_되돌린다() async {
@@ -129,12 +129,12 @@ struct SettingFeatureTests {
             $0.updateSettingUseCase.execute = { _ in .failure(.unknown) }
         }
 
-        await store.send(.deviceSettingChanged(type: .alarm, isOn: false)) {
+        await store.send(.view(.deviceSettingChanged(type: .alarm, isOn: false))) {
             $0.setting.alarmEnabled = false
         }
-        await store.receive(.settingSaveFailed(.unknown)) {
+        await store.receive(\.effect.updateSettingResponse.failure, .unknown) {
             $0.setting = self.stored
-            $0.destination = .alert(AlertState.settingFailure(.unknown, action: .save)!)
+            $0.destination = .alert(AlertState.settingSaveFailure(.unknown)!)
         }
     }
 
@@ -151,14 +151,14 @@ struct SettingFeatureTests {
         let soundOnly = AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: false)
         let both = AppSetting(soundEnabled: true, hapticEnabled: true, alarmEnabled: false)
 
-        await store.send(.deviceSettingChanged(type: .sound, isOn: true)) {
+        await store.send(.view(.deviceSettingChanged(type: .sound, isOn: true))) {
             $0.setting = soundOnly
         }
-        await store.send(.deviceSettingChanged(type: .haptic, isOn: true)) {
+        await store.send(.view(.deviceSettingChanged(type: .haptic, isOn: true))) {
             $0.setting = both
         }
         await clock.advance(by: .seconds(1))
-        await store.receive(.settingSaved(both)) {
+        await store.receive(\.effect.updateSettingResponse.success, both) {
             $0.savedSetting = both
         }
     }
@@ -176,11 +176,11 @@ struct SettingFeatureTests {
         }
         let toggled = AppSetting(soundEnabled: false, hapticEnabled: false, alarmEnabled: true)
 
-        await store.send(.onAppear)
-        await store.send(.deviceSettingChanged(type: .alarm, isOn: true)) {
+        await store.send(.view(.onAppear))
+        await store.send(.view(.deviceSettingChanged(type: .alarm, isOn: true))) {
             $0.setting = toggled
         }
-        await store.receive(.settingSaved(toggled)) {
+        await store.receive(\.effect.updateSettingResponse.success, toggled) {
             $0.savedSetting = toggled
         }
         await clock.advance(by: .seconds(1))
@@ -195,7 +195,7 @@ struct SettingFeatureTests {
         }
         let url = try #require(item.url)
 
-        await store.send(.aboutUsTapped(item)) {
+        await store.send(.view(.aboutUsTapped(item))) {
             $0.destination = .webPage(url)
         }
         await store.send(.destination(.dismiss)) {
@@ -208,7 +208,7 @@ struct SettingFeatureTests {
             SettingFeature()
         }
 
-        await store.send(.aboutUsTapped(.talkToDeveloper)) {
+        await store.send(.view(.aboutUsTapped(.talkToDeveloper))) {
             $0.destination = .feedback(FeedbackFeature.State())
         }
     }
@@ -225,10 +225,10 @@ struct SettingFeatureTests {
         await store.send(.destination(.presented(.feedback(.sendTapped)))) {
             $0.destination?.modify(\.feedback) { $0.isSending = true }
         }
-        await store.receive(.destination(.presented(.feedback(.sendSucceeded)))) {
+        await store.receive(\.destination.feedback.sendSucceeded) {
             $0.destination?.modify(\.feedback) { $0.isSending = false }
         }
-        await store.receive(.destination(.presented(.feedback(.delegate(.sent))))) {
+        await store.receive(\.destination.feedback.delegate, .sent) {
             $0.destination = nil
         }
     }
@@ -243,7 +243,7 @@ struct SettingFeatureTests {
             $0.logoutUseCase.execute = { succeeds ? .success(()) : .failure(.offline) }
         }
 
-        await store.send(.logoutTapped)
-        await store.receive(.delegate(.logout))
+        await store.send(.view(.logoutTapped))
+        await store.receive(\.delegate.logout)
     }
 }
