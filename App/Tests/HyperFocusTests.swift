@@ -24,9 +24,22 @@ struct RootFeatureTests {
             RootFeature()
         }
 
-        await store.send(\.log.settingButtonTapped)
+        await store.send(.log(.view(.settingTapped)))
         await store.receive(\.log.delegate.settingTapped) {
             $0.logPath[id: 0] = .setting(SettingFeature.State())
+        }
+    }
+
+    @Test func 빈_기록_화면에서_시작을_누르면_타이머_탭으로_옮긴다() async {
+        var state = RootFeature.State()
+        state.selectedTab = .log
+        let store = TestStore(initialState: state) {
+            RootFeature()
+        }
+
+        await store.send(.log(.view(.startTapped)))
+        await store.receive(\.log.delegate.startFocusTapped) {
+            $0.selectedTab = .timer
         }
     }
 
@@ -236,6 +249,9 @@ struct RootFeatureTests {
         state.$profile.withLock { $0 = .mock }
         state.logPath.append(.setting(SettingFeature.State(profile: state.$profile)))
         let (events, expire) = AsyncStream<Void>.makeStream()
+        // 다시 로그인하는 일을 붙잡아 둔다. `profile`은 참조로 공유돼서, 만료를 검증하기 전에
+        // 새 프로필까지 들어오면 계정이 비워진 순간을 볼 수 없다.
+        let (signInGate, allowSignIn) = AsyncStream<Void>.makeStream()
         let signedIn = LockIsolated(false)
         let store = TestStore(initialState: state) {
             RootFeature()
@@ -244,6 +260,7 @@ struct RootFeatureTests {
             $0.checkAppUpdateUseCase.execute = { .success(.upToDate) }
             $0.ensureSignedInUseCase.execute = {
                 signedIn.setValue(true)
+                for await _ in signInGate { break }
                 return .success(())
             }
             $0.fetchProfileUseCase.execute = { .success(.mock) }
@@ -258,6 +275,7 @@ struct RootFeatureTests {
             $0.logPath = StackState()
             $0.selectedTab = .timer
         }
+        allowSignIn.yield()
         await store.receive(\.effect.fetchProfileResponse) {
             $0.$profile.withLock { $0 = .mock }
         }

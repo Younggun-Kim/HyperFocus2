@@ -92,6 +92,7 @@ let project = Project(
     + Target.feature(
         name: "SessionLog",
         dependencies: [
+            .target(name: "BaseFeature"),
             .target(name: "Domain"),
             .target(name: "DesignSystem"),
         ],
