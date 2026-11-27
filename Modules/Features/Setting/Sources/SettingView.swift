@@ -10,26 +10,31 @@ public struct SettingView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 20) {
-            accountSection
-                .padding(.bottom, 40)
+        // 작은 기기나 큰 글씨에서는 한 화면에 다 들어가지 않는다.
+        ScrollView {
+            VStack(spacing: 20) {
+                accountSection
+                    .padding(.bottom, 40)
 
-            deviceSection
+                deviceSection
 
-            divider
+                divider
 
-            aboutUsSection
-                .padding(.bottom, 16)
+                aboutUsSection
+                    .padding(.bottom, 16)
 
-            if store.email != nil {
-                accountActions
-                    .padding(.top, 32)
-                    .padding(.bottom, 10)
+                if store.email != nil {
+                    accountActions
+                        .padding(.top, 32)
+                        .padding(.bottom, 10)
+                }
+
+                versionLabel
+                    .padding(.top, 24)
             }
-
-            Spacer()
+            .padding()
         }
-        .padding()
+        .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignSystemAsset.Colors.bgPrimary.swiftUIColor.ignoresSafeArea())
         .onAppear { store.send(.view(.onAppear)) }
@@ -53,7 +58,9 @@ public struct SettingView: View {
     // MARK: - 섹션
 
     private var accountSection: some View {
-        AppleLoginView(email: store.email) { store.send(.view(.appleSignInCompleted($0))) }
+        AppleLoginView(email: store.email, isLoading: store.isSigningIn) {
+            store.send(.view(.appleSignInCompleted($0)))
+        }
     }
 
     private var deviceSection: some View {
@@ -112,6 +119,13 @@ public struct SettingView: View {
                     .foregroundStyle(DesignSystemAsset.Colors.systemRed.swiftUIColor)
             }
         }
+    }
+
+    private var versionLabel: some View {
+        Text(AppVersion.display())
+            .font(.caption2)
+            .foregroundStyle(DesignSystemAsset.Colors.labelVibrantTertiary.swiftUIColor)
+            .accessibilityLabel("Version \(AppVersion.display())")
     }
 
     // MARK: - 바인딩

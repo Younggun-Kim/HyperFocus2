@@ -163,12 +163,27 @@ struct RootFeatureTests {
             $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
-        // 설정 화면에서 Apple 로그인에 성공하면 Root가 프로필을 다시 불러온다.
-        await store.send(.logPath(.element(id: 0, action: .setting(.delegate(.accountChanged)))))
-        await store.receive(\.effect.fetchProfileResponse) {
+        // 설정 화면이 새 프로필을 받아 오면 Root가 그대로 넣고, 설정 화면에도 함께 보인다.
+        await store.send(.logPath(.element(id: 0, action: .setting(.delegate(.accountChanged(Profile.mock)))))) {
             $0.$profile.withLock { $0 = .mock }
         }
         #expect(store.state.logPath[id: 0] == .setting(SettingFeature.State(profile: Shared(value: .mock))))
+    }
+
+    @Test func 설정_화면이_새_프로필을_받지_못하면_Root가_다시_불러온다() async {
+        var state = RootFeature.State.updateChecked
+        state.isSignInChecked = true
+        state.logPath.append(.setting(SettingFeature.State(profile: state.$profile)))
+        let store = TestStore(initialState: state) {
+            RootFeature()
+        } withDependencies: {
+            $0.fetchProfileUseCase.execute = { .success(.mock) }
+        }
+
+        await store.send(.logPath(.element(id: 0, action: .setting(.delegate(.accountChanged(nil))))))
+        await store.receive(\.effect.fetchProfileResponse) {
+            $0.$profile.withLock { $0 = .mock }
+        }
     }
 
     // MARK: - 로그아웃

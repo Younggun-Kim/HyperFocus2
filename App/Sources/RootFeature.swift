@@ -144,8 +144,11 @@ struct RootFeature {
                 state.logPath.append(.setting(SettingFeature.State(profile: state.$profile)))
                 return .none
 
-            case .logPath(.element(id: _, action: .setting(.delegate(.accountChanged)))):
-                return fetchProfile()
+            case let .logPath(.element(id: _, action: .setting(.delegate(.accountChanged(profile))))):
+                // 설정 화면이 새 프로필을 받아 왔으면 그대로 쓰고, 받지 못했으면 여기서 다시 불러온다.
+                guard let profile else { return fetchProfile() }
+                state.$profile.withLock { $0 = profile }
+                return .none
 
             case .logPath(.element(id: _, action: .setting(.delegate(.logout)))):
                 state.resetForLogout()
