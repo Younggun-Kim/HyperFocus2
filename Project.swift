@@ -99,11 +99,31 @@ let project = Project(
     + Target.feature(
         name: "Setting",
         dependencies: [
+            .target(name: "BaseFeature"),
             .target(name: "Domain"),
             .target(name: "DesignSystem"),
         ],
     )
     + [
+        // Feature들이 함께 쓰는 화면 계층 코드. 화면이 없어 Example 없이 module로 만든다.
+        .module(
+            name: "BaseFeature",
+            path: "./Modules/Features/BaseFeature",
+            dependencies: [
+                .target(name: "Domain"),
+                .external(name: "ComposableArchitecture"),
+            ]
+        ),
+        .moduleTests(
+            name: "BaseFeature",
+            path: "./Modules/Features/BaseFeature",
+            dependencies: [
+                .target(name: "Domain"),
+                .external(name: "ComposableArchitecture"),
+            ]
+        ),
+
+
         // MARK: - Domain
         // 내부 모듈에 의존하지 않는다. Entity, Repository 포트, UseCase
         .module(

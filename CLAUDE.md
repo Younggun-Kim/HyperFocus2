@@ -27,6 +27,7 @@ HyperFocus는 집중 타이머 iOS 앱이다. 이 저장소는 앱을 Tuist 기�
 
 ```
 App ──→ Feature ──→ Domain ←── Data ──→ CoreNetwork ──→ Alamofire
+ │         ├──→ BaseFeature ──→ Domain
  │         ├──→ Util
  │         └──→ DesignSystem
  ├──→ Domain (RootFeature가 UseCase를 쓴다)
@@ -36,8 +37,9 @@ App ──→ Feature ──→ Domain ←── Data ──→ CoreNetwork ─�
 | 모듈 | 역할 | 의존할 수 있는 대상 | 쓸 수 있는 곳 | 세부 규칙 |
 | --- | --- | --- | --- | --- |
 | App | 진입점, Feature 조립, 환경 설정 | Feature, Domain, Data, TCA | - | `App/CLAUDE.md` |
-| Feature | 화면 단위 (Sources, Example, Tests) | Domain, Util, DesignSystem, TCA | App | `Modules/Features/CLAUDE.md` |
-| Domain | Entity, Repository 포트, UseCase | swift-dependencies만 | Feature, Data, App | `Modules/Domain/CLAUDE.md` |
+| Feature | 화면 단위 (Sources, Example, Tests) | BaseFeature, Domain, Util, DesignSystem, TCA | App | `Modules/Features/CLAUDE.md` |
+| BaseFeature | Feature들이 함께 쓰는 화면 계층 코드 (공통 실패 문구, `AlertState` 헬퍼) | Domain, TCA | Feature | `Modules/Features/CLAUDE.md` |
+| Domain | Entity, Repository 포트, UseCase | swift-dependencies만 | Feature, BaseFeature, Data, App | `Modules/Domain/CLAUDE.md` |
 | Data | Repository 구현, DataSource | Domain, CoreNetwork, swift-dependencies | App | `Modules/Data/CLAUDE.md` |
 | CoreNetwork | 통신 공통 코드 (`APIService`, `APIEndpoint`, 토큰 갱신) | Alamofire | Data | `Modules/Core/CoreNetwork/CLAUDE.md` |
 | Util | 순수 유틸리티 | 없음 | 모든 모듈 | - |
@@ -105,10 +107,10 @@ tuist test --device "iPhone 17 Pro" --no-selective-testing   # CI와 같은 전�
 
 **아키텍처**
 - Feature에서 Repository를 `@Dependency`로 직접 쓰지 않는다. 같은 Domain 모듈이라 그래프로는 막히지 않는다.
-- Feature끼리 의존하지 않는다.
+- Feature끼리 의존하지 않는다. 함께 쓰는 화면 계층 코드는 `BaseFeature`에 둔다.
 - Data를 App 밖(Feature, Example 앱, 테스트 포함)에서 링크하지 않는다. Example과 테스트는 mock을 주입한다.
 - Feature·Domain에서 `SwiftData`, `Alamofire`, `CoreNetwork`를 import하지 않는다. Alamofire는 CoreNetwork 밖에서 쓰지 않는다.
-- 아래 계층의 에러 타입(`APIError`, SwiftData 에러)을 위로 그대로 올리지 않는다. 사용자 문구를 Feature 밖에서 만들지 않는다.
+- 아래 계층의 에러 타입(`APIError`, SwiftData 에러)을 위로 그대로 올리지 않는다. 사용자 문구를 Feature·BaseFeature 밖에서 만들지 않는다.
 
 **코드와 데이터**
 - 환경별 값을 `#if DEBUG`로 하드코딩하지 않는다.
