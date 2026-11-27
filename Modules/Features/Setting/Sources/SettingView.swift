@@ -4,68 +4,27 @@ import SwiftUI
 
 public struct SettingView: View {
     @Bindable var store: StoreOf<SettingFeature>
-    
+
     public init(store: StoreOf<SettingFeature>) {
         self.store = store
     }
-    
+
     public var body: some View {
         VStack(spacing: 20) {
-            AppleLoginView(email: store.email) { store.send(.view(.appleSignInCompleted($0))) }
+            accountSection
                 .padding(.bottom, 40)
-            
-            VStack(spacing: 16) {
-                ForEach(SettingMenuType.DeviceSetting.allCases, id: \.self) { item in
-                    SettingMenu(type: .device(item)) {
-                        CommonToggle(isOn: binding(item))
-                    }
-                }
-            }
-            
-            Rectangle()
-                .fill(DesignSystemAsset.Colors.systemLightGray.swiftUIColor)
-                .frame(height: 1)
-            
-            VStack(alignment: .leading,spacing: 16) {
-                Text("About Us")
-                    .font(.caption)
-                    .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
-                
-                ForEach(SettingMenuType.AboutUs.allCases, id: \.self) { item in
-                    Button {
-                        store.send(.view(.aboutUsTapped(item)))
-                    } label: {
-                        SettingMenu(type: .aboutUs(item)) {
-                            Image(systemName: "chevron.right")
-                                .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
-                                .accessibilityHidden(true)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.bottom, 16)
-            
+
+            deviceSection
+
+            divider
+
+            aboutUsSection
+                .padding(.bottom, 16)
+
             if store.email != nil {
-                HStack(spacing: 30) {
-                    Button(action: {
-                        store.send(.view(.logoutTapped))
-                    }) {
-                        Text("Sign Out")
-                            .font(.caption)
-                            .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
-                    }
-                    Button(action: {
-                    
-                    }) {
-                        Text("Delete Account")
-                            .font(.caption)
-                            .foregroundStyle(DesignSystemAsset.Colors.systemRed.swiftUIColor)
-                    }
-                }
-                .padding(.top, 32)
-                .padding(.bottom, 10)
-            
+                accountActions
+                    .padding(.top, 32)
+                    .padding(.bottom, 10)
             }
 
             Spacer()
@@ -83,16 +42,79 @@ public struct SettingView: View {
                     .presentationDetents([.large])
             }
         }
-        .sheet(item: $store.scope(
-            state: \.destination?.feedback,
-            action: \.destination.feedback)
-        ) { feedbackStore in
+        .sheet(item: $store.scope(state: \.destination?.feedback, action: \.destination.feedback)) { feedbackStore in
             FeedbackView(store: feedbackStore)
                 .presentationDragIndicator(.visible)
                 .presentationDetents([.large])
         }
     }
-    
+
+    // MARK: - 섹션
+
+    private var accountSection: some View {
+        AppleLoginView(email: store.email) { store.send(.view(.appleSignInCompleted($0))) }
+    }
+
+    private var deviceSection: some View {
+        VStack(spacing: 16) {
+            ForEach(SettingMenuType.DeviceSetting.allCases, id: \.self) { item in
+                SettingMenu(type: .device(item)) {
+                    CommonToggle(isOn: binding(item))
+                }
+            }
+        }
+    }
+
+    private var divider: some View {
+        Rectangle()
+            .fill(DesignSystemAsset.Colors.systemLightGray.swiftUIColor)
+            .frame(height: 1)
+    }
+
+    private var aboutUsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("About Us")
+                .font(.caption)
+                .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
+
+            ForEach(SettingMenuType.AboutUs.allCases, id: \.self) { item in
+                Button {
+                    store.send(.view(.aboutUsTapped(item)))
+                } label: {
+                    SettingMenu(type: .aboutUs(item)) {
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    /// Apple 계정으로 로그인했을 때만 보인다.
+    private var accountActions: some View {
+        HStack(spacing: 30) {
+            Button {
+                store.send(.view(.logoutTapped))
+            } label: {
+                Text("Sign Out")
+                    .font(.caption)
+                    .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
+            }
+
+            Button {
+                // TODO: 계정 삭제 연결
+            } label: {
+                Text("Delete Account")
+                    .font(.caption)
+                    .foregroundStyle(DesignSystemAsset.Colors.systemRed.swiftUIColor)
+            }
+        }
+    }
+
+    // MARK: - 바인딩
+
     /// 웹 페이지 케이스는 리듀서가 없어 scope로 바인딩할 수 없으므로 직접 만든다.
     private var webPageBinding: Binding<Bool> {
         Binding(
@@ -104,7 +126,7 @@ public struct SettingView: View {
             }
         )
     }
-    
+
     /// 읽기는 store 값, 쓰기는 `deviceSettingChanged` 액션으로 보내는 바인딩.
     private func binding(_ type: SettingMenuType.DeviceSetting) -> Binding<Bool> {
         Binding(
