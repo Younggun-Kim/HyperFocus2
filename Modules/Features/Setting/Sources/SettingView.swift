@@ -33,6 +33,7 @@ public struct SettingView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignSystemAsset.Colors.bgPrimary.swiftUIColor.ignoresSafeArea())
         .onAppear { store.send(.view(.onAppear)) }
+        .toast(message: toastBinding)
         .alert($store.scope(state: \.destination?.alert, action: \.destination.alert))
         .sheet(isPresented: webPageBinding) {
             if let url = store.destination?.webPage {
@@ -124,6 +125,14 @@ public struct SettingView: View {
                     store.send(.destination(.dismiss))
                 }
             }
+        )
+    }
+
+    /// 토스트가 시간이 지나 사라지면 nil이 들어온다.
+    private var toastBinding: Binding<String?> {
+        Binding(
+            get: { store.toast },
+            set: { if $0 == nil { store.send(.view(.toastDismissed)) } }
         )
     }
 

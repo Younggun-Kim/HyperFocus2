@@ -213,7 +213,7 @@ struct SettingFeatureTests {
         }
     }
 
-    @Test func 피드백_전송에_성공하면_시트를_닫는다() async {
+    @Test func 피드백_전송에_성공하면_시트를_닫고_토스트를_띄운다() async {
         var state = SettingFeature.State()
         state.destination = .feedback(FeedbackFeature.State(text: "좋아요"))
         let store = TestStore(initialState: state) {
@@ -230,6 +230,19 @@ struct SettingFeatureTests {
         }
         await store.receive(\.destination.feedback.delegate, .sent) {
             $0.destination = nil
+            $0.toast = "Message received! Thanks. 💌"
+        }
+    }
+
+    @Test func 토스트가_사라지면_문구를_지운다() async {
+        var state = SettingFeature.State()
+        state.toast = "Message received! Thanks. 💌"
+        let store = TestStore(initialState: state) {
+            SettingFeature()
+        }
+
+        await store.send(.view(.toastDismissed)) {
+            $0.toast = nil
         }
     }
 

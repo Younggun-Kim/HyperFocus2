@@ -33,6 +33,8 @@ public struct SettingFeature {
         /// 지금 로그인된 계정. 소유자가 넘겨준 참조라 여기서는 읽기만 한다.
         @Shared var profile: Profile?
         @Presents var destination: Destination.State?
+        /// 화면 아래에 잠깐 띄우는 안내. 뷰가 시간이 지나면 `toastDismissed`로 지운다.
+        var toast: String?
 
         /// Apple 계정으로 로그인했을 때만 값이 있다.
         var email: String? {
@@ -62,6 +64,7 @@ public struct SettingFeature {
             case appleSignInCompleted(AppleSignInResult)
             case logoutTapped
             case withdrawalTapped
+            case toastDismissed
         }
 
         /// UseCase 응답.
@@ -107,6 +110,7 @@ public struct SettingFeature {
 
             case .destination(.presented(.feedback(.delegate(.sent)))):
                 state.destination = nil
+                state.toast = "Message received! Thanks. 💌"
                 return .none
 
             case .destination(.presented(.alert(.confirmWithdrawal))):
@@ -163,6 +167,10 @@ public struct SettingFeature {
 
         case .withdrawalTapped:
             state.presentAlert(.withdrawalConfirm)
+            return .none
+
+        case .toastDismissed:
+            state.toast = nil
             return .none
         }
     }
