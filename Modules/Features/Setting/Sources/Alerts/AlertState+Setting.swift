@@ -55,8 +55,10 @@ extension AlertState {
     }
 
     /// 탈퇴 실패 알림. 계정은 그대로 남아 있다.
+    /// `unauthorized`는 세션 만료라 앱 전역에서 처리하므로 알리지 않는다.
     static func withdrawalFailure(_ error: DomainError) -> Self? {
-        .failure(title: "Couldn't delete your account.", error: error)
+        guard error != .unauthorized else { return nil }
+        return .failure(title: "Couldn't delete your account.", error: error)
     }
 }
 
