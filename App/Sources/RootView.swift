@@ -22,17 +22,17 @@ struct RootView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: store.isLaunching)
         .onAppear {
-            store.send(.onAppear)
+            store.send(.view(.onAppear))
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                store.send(.sceneActivated)
+                store.send(.view(.sceneActivated))
             }
         }
     }
 
     private var main: some View {
-        TabView(selection: $store.selectedTab.sending(\.tabSelected)) {
+        TabView(selection: $store.selectedTab.sending(\.view.tabSelected)) {
             Tab("타이머", systemImage: "timer", value: RootFeature.Tab.timer) {
                 FocusHomeView(store: store.scope(state: \.timer, action: \.timer))
             }

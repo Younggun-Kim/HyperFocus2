@@ -8,8 +8,6 @@ import Domain
 
 @Reducer
 struct RootFeature {
-    @Dependency(\.ensureSignedInUseCase) var ensureSignedInUseCase
-    @Dependency(\.fetchProfileUseCase) var fetchProfileUseCase
 
     /// 기록 탭 NavigationStack에 쌓이는 화면.
     /// SessionLog와 Setting을 모두 아는 곳은 App뿐이라 여기서 정의한다.
@@ -53,22 +51,31 @@ struct RootFeature {
     }
 
     enum Action {
+        case view(ViewAction)
+        case effect(EffectAction)
         case splash(SplashFeature.Action)
         case timer(FocusHomeFeature.Action)
         case log(SessionLogHomeFeature.Action)
         case logPath(StackActionOf<LogPath>)
 
-        case onAppear
-        case tabSelected(Tab)
-        /// 앱이 다시 활성 상태가 됐다.
-        case sceneActivated
-        case effect(EffectAction)
+        /// 사용자와 시스템이 화면에 한 일.
+        @CasePathable
+        enum ViewAction {
+            case onAppear
+            case tabSelected(Tab)
+            /// 앱이 다시 활성 상태가 됐다.
+            case sceneActivated
+        }
 
+        /// UseCase 응답.
         @CasePathable
         enum EffectAction {
             case fetchProfileResponse(Result<Profile, DomainError>)
         }
     }
+
+    @Dependency(\.ensureSignedInUseCase) var ensureSignedInUseCase
+    @Dependency(\.fetchProfileUseCase) var fetchProfileUseCase
 
     var body: some ReducerOf<Self> {
         Scope(state: \.splash, action: \.splash) { SplashFeature() }
@@ -77,17 +84,11 @@ struct RootFeature {
 
         Reduce { state, action in
             switch action {
-            case .onAppear:
-                return ensureSignedIn()
+            case .view(let action):
+                return viewAction(&state, action)
 
-            case .sceneActivated:
-                guard state.needsSignInRetry else { return .none }
-                state.needsSignInRetry = false
-                return ensureSignedIn()
-
-            case .tabSelected(let tab):
-                state.selectedTab = tab
-                return .none
+            case .effect(let action):
+                return effectAction(&state, action)
 
             case .splash(.delegate(.finished)):
                 state.isSplashFinished = true
@@ -101,29 +102,44 @@ struct RootFeature {
                 return fetchProfile()
 
             case .logPath(.element(id: _, action: .setting(.delegate(.logout)))):
-                state.$profile.withLock { $0 = nil }
-                state.logPath.removeAll()
-                state.selectedTab = .timer
+                state.resetForLogout()
                 // 토큰이 지워졌으니 익명 계정을 다시 받는다.
                 return ensureSignedIn()
 
             case .splash, .timer, .log, .logPath:
                 return .none
-
-            case .effect(let effect):
-                return effectAction(&state, effect)
             }
         }
         .forEach(\.logPath, action: \.logPath)
     }
 
-    func effectAction(_ state: inout State, _ action: Action.EffectAction) -> Effect<Action> {
+    // MARK: - View
+
+    private func viewAction(_ state: inout State, _ action: Action.ViewAction) -> Effect<Action> {
         switch action {
-        case .fetchProfileResponse(let result):
+        case .onAppear:
+            return ensureSignedIn()
+
+        case .sceneActivated:
+            guard state.needsSignInRetry else { return .none }
+            state.needsSignInRetry = false
+            return ensureSignedIn()
+
+        case let .tabSelected(tab):
+            state.selectedTab = tab
+            return .none
+        }
+    }
+
+    // MARK: - Effect
+
+    private func effectAction(_ state: inout State, _ action: Action.EffectAction) -> Effect<Action> {
+        switch action {
+        case let .fetchProfileResponse(result):
             // 실패해도 메인으로 넘긴다. 타이머는 서버 없이도 쓸 수 있다.
             state.isSignInChecked = true
             switch result {
-            case .success(let profile):
+            case let .success(profile):
                 state.$profile.withLock { $0 = profile }
             case .failure:
                 state.needsSignInRetry = true
@@ -138,7 +154,7 @@ struct RootFeature {
             switch await ensureSignedInUseCase.execute() {
             case .success:
                 await send(.effect(.fetchProfileResponse(fetchProfileUseCase.execute())))
-            case .failure(let error):
+            case let .failure(error):
                 await send(.effect(.fetchProfileResponse(.failure(error))))
             }
         }
@@ -152,3 +168,12 @@ struct RootFeature {
 }
 
 extension RootFeature.LogPath.State: Equatable {}
+
+private extension RootFeature.State {
+    /// 로그아웃하면 계정을 비우고 기록 스택을 닫은 뒤 타이머 탭으로 돌아간다.
+    mutating func resetForLogout() {
+        $profile.withLock { $0 = nil }
+        logPath.removeAll()
+        selectedTab = .timer
+    }
+}
