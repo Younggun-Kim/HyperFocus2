@@ -13,7 +13,13 @@ public struct SettingFeature {
         @ReducerCaseIgnored
         case webPage(URL)
         case feedback(FeedbackFeature)
-        case alert(AlertState<Never>)
+        case alert(AlertState<Alert>)
+    }
+
+    /// 알림 버튼이 보내는 액션.
+    public enum Alert: Equatable {
+        /// 탈퇴 확인 알림에서 삭제를 눌렀다.
+        case confirmWithdrawal
     }
 
     @ObservableState
@@ -55,6 +61,7 @@ public struct SettingFeature {
             case aboutUsTapped(SettingMenuType.AboutUs)
             case appleSignInCompleted(AppleSignInResult)
             case logoutTapped
+            case withdrawalTapped
         }
 
         /// UseCase 응답.
@@ -63,13 +70,14 @@ public struct SettingFeature {
             case fetchSettingResponse(Result<AppSetting, DomainError>)
             case updateSettingResponse(Result<AppSetting, DomainError>)
             case signInResponse(Result<Void, DomainError>)
+            case withdrawResponse(Result<Void, DomainError>)
         }
 
         @CasePathable
         public enum Delegate: Equatable {
             /// 로그인된 계정이 바뀌었다.
             case accountChanged
-            /// 로그아웃했다.
+            /// 로그아웃했다.(or 탈퇴)
             case logout
         }
     }
@@ -84,6 +92,7 @@ public struct SettingFeature {
     @Dependency(\.updateSettingUseCase) var updateSettingUseCase
     @Dependency(\.signInWithAppleUseCase) var signInWithAppleUseCase
     @Dependency(\.logoutUseCase) var logoutUseCase
+    @Dependency(\.withdrawUseCase) var withdrawUseCase
 
     public init() {}
 
@@ -99,6 +108,9 @@ public struct SettingFeature {
             case .destination(.presented(.feedback(.delegate(.sent)))):
                 state.destination = nil
                 return .none
+
+            case .destination(.presented(.alert(.confirmWithdrawal))):
+                return withdraw()
 
             case .destination, .delegate:
                 return .none
@@ -148,6 +160,10 @@ public struct SettingFeature {
 
         case .logoutTapped:
             return logout()
+
+        case .withdrawalTapped:
+            state.presentAlert(.withdrawalConfirm)
+            return .none
         }
     }
 
@@ -201,6 +217,16 @@ public struct SettingFeature {
                 state.presentAlert(.appleSignInFailure(error))
                 return .none
             }
+
+        case let .withdrawResponse(result):
+            switch result {
+            case .success:
+                Logger.setting.info("탈퇴 완료")
+                return .send(.delegate(.logout))
+            case let .failure(error):
+                state.presentAlert(.withdrawalFailure(error))
+                return .none
+            }
         }
     }
 
@@ -233,6 +259,12 @@ public struct SettingFeature {
             await send(.delegate(.logout))
         }
     }
+
+    private func withdraw() -> Effect<Action> {
+        .run { send in
+            await send(.effect(.withdrawResponse(withdrawUseCase.execute())))
+        }
+    }
 }
 
 extension SettingFeature.Destination.State: Equatable {}
@@ -245,7 +277,7 @@ private extension SettingFeature.State {
     }
 
     /// 알릴 필요가 없는 에러(nil)면 띄우지 않고, 지금 띄운 시트도 그대로 둔다.
-    mutating func presentAlert(_ alert: AlertState<Never>?) {
+    mutating func presentAlert(_ alert: AlertState<SettingFeature.Alert>?) {
         guard let alert else { return }
         destination = .alert(alert)
     }

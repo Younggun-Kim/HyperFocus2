@@ -62,4 +62,11 @@ enum AuthAPI {
         var path: String { "/api/v1/auth/logout" }
         var method: HTTPMethod { .post }
     }
+
+    struct Withdraw: APIEndpoint, Equatable {
+        typealias Response = EmptyResponse
+
+        var path: String { "/api/v1/auth/account" }
+        var method: HTTPMethod { .delete }
+    }
 }

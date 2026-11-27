@@ -246,4 +246,66 @@ struct SettingFeatureTests {
         await store.send(.view(.logoutTapped))
         await store.receive(\.delegate.logout)
     }
+
+    // MARK: - 탈퇴
+
+    @Test func 탈퇴를_누르면_확인_알림을_띄운다() async {
+        let store = TestStore(initialState: SettingFeature.State()) {
+            SettingFeature()
+        }
+
+        await store.send(.view(.withdrawalTapped)) {
+            $0.destination = .alert(.withdrawalConfirm)
+        }
+    }
+
+    @Test func 확인_알림에서_삭제를_누르면_탈퇴하고_로그아웃을_알린다() async {
+        let called = LockIsolated(false)
+        var state = SettingFeature.State()
+        state.destination = .alert(.withdrawalConfirm)
+        let store = TestStore(initialState: state) {
+            SettingFeature()
+        } withDependencies: {
+            $0.withdrawUseCase.execute = {
+                called.setValue(true)
+                return .success(())
+            }
+        }
+
+        await store.send(.destination(.presented(.alert(.confirmWithdrawal)))) {
+            $0.destination = nil
+        }
+        await store.receive(\.effect.withdrawResponse)
+        await store.receive(\.delegate.logout)
+        #expect(called.value)
+    }
+
+    @Test func 탈퇴에_실패하면_알리고_로그인_상태를_유지한다() async {
+        var state = SettingFeature.State()
+        state.destination = .alert(.withdrawalConfirm)
+        let store = TestStore(initialState: state) {
+            SettingFeature()
+        } withDependencies: {
+            $0.withdrawUseCase.execute = { .failure(.offline) }
+        }
+
+        await store.send(.destination(.presented(.alert(.confirmWithdrawal)))) {
+            $0.destination = nil
+        }
+        await store.receive(\.effect.withdrawResponse) {
+            $0.destination = .alert(.withdrawalFailure(.offline)!)
+        }
+    }
+
+    @Test func 확인_알림에서_취소하면_탈퇴하지_않는다() async {
+        var state = SettingFeature.State()
+        state.destination = .alert(.withdrawalConfirm)
+        let store = TestStore(initialState: state) {
+            SettingFeature()
+        }
+
+        await store.send(.destination(.dismiss)) {
+            $0.destination = nil
+        }
+    }
 }

@@ -215,4 +215,29 @@ struct AuthRepositoryTests {
         }
         #expect(stored.value == nil)
     }
+
+    // MARK: - 탈퇴
+
+    @Test func 탈퇴는_토큰을_붙여_보내고_저장된_토큰을_지운다() async throws {
+        let service = FakeAPIService(.json(#"{"success": true}"#))
+        let stored = LockIsolated<AuthToken?>(issued)
+
+        try await repository(service, stored: stored).withdraw().get()
+
+        let endpoint = try #require(service.endpoints.first as? AuthAPI.Withdraw)
+        #expect(endpoint.path == "/api/v1/auth/account")
+        #expect(endpoint.method == .delete)
+        #expect(endpoint.requiresAuth == true)
+        #expect(stored.value == nil)
+    }
+
+    @Test func 탈퇴_요청이_실패하면_토큰을_남기고_에러를_돌려준다() async {
+        let service = FakeAPIService(.failure(APIError.networkError("test")))
+        let stored = LockIsolated<AuthToken?>(issued)
+
+        await #expect(throws: DomainError.self) {
+            try await repository(service, stored: stored).withdraw().get()
+        }
+        #expect(stored.value == issued)
+    }
 }

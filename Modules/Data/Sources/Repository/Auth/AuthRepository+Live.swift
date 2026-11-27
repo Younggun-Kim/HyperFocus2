@@ -57,6 +57,16 @@ extension AuthRepository: @retroactive DependencyKey {
                 tokens.update(nil)
                 return result
             },
+            withdraw: {
+                let result = await service.request(AuthAPI.Withdraw())
+                    .domainResult("탈퇴")
+                    .map { _ in }
+                // 서버에 계정이 남아 있으면 다시 시도할 수 있게 토큰을 둔다.
+                if case .success = result {
+                    tokens.update(nil)
+                }
+                return result
+            },
         )
     }
 }

@@ -33,7 +33,8 @@ struct SignInWithAppleUseCaseTests {
                 return .success(())
             },
             fetchProfile: { .failure(.unknown) },
-            logout: { .failure(.unknown) }
+            logout: { .failure(.unknown) },
+            withdraw: { .failure(.unknown) }
         )
     }
     
