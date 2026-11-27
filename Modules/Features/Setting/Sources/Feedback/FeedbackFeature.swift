@@ -16,7 +16,7 @@ public struct FeedbackFeature {
         var category: FeedbackCategory
         var text: String
         var isSending: Bool
-        @Presents var alert: AlertState<Action.Alert>?
+        @Presents var alert: AlertState<Never>?
 
         var canSend: Bool {
             !isSending && !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -33,18 +33,28 @@ public struct FeedbackFeature {
         }
     }
 
-    public enum Action: Equatable {
-        case categoryTapped(FeedbackCategory)
-        case textChanged(String)
-        case closeTapped
-        case sendTapped
-        case sendSucceeded
-        case sendFailed(DomainError)
-        case alert(PresentationAction<Alert>)
+    public enum Action {
+        case view(ViewAction)
+        case effect(EffectAction)
+        case alert(PresentationAction<Never>)
         case delegate(Delegate)
 
-        public enum Alert: Equatable {}
+        /// 사용자가 화면에서 한 일.
+        @CasePathable
+        public enum ViewAction {
+            case categoryTapped(FeedbackCategory)
+            case textChanged(String)
+            case closeTapped
+            case sendTapped
+        }
 
+        /// UseCase 응답.
+        @CasePathable
+        public enum EffectAction {
+            case sendResponse(Result<Void, DomainError>)
+        }
+
+        @CasePathable
         public enum Delegate: Equatable {
             /// 전송 성공. 시트를 닫는 것은 부모가 한다.
             case sent
@@ -59,36 +69,11 @@ public struct FeedbackFeature {
     public var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
-            case let .categoryTapped(category):
-                state.category = category
-                return .none
+            case .view(let action):
+                return viewAction(&state, action)
 
-            case let .textChanged(text):
-                state.text = String(text.prefix(State.maxLength))
-                return .none
-
-            case .closeTapped:
-                return .run { _ in await dismiss() }
-
-            case .sendTapped:
-                guard state.canSend else { return .none }
-                state.isSending = true
-                return .run { [category = state.category, content = state.text] send in
-                    // 시트가 닫혀 취소되면 `send`가 액션을 버린다. 알릴 대상이 없다.
-                    switch await sendFeedbackUseCase.execute(category, content) {
-                    case .success: await send(.sendSucceeded)
-                    case .failure(let error): await send(.sendFailed(error))
-                    }
-                }
-
-            case .sendSucceeded:
-                state.isSending = false
-                return .send(.delegate(.sent))
-
-            case let .sendFailed(error):
-                state.isSending = false
-                state.alert = .sendFailure(error)
-                return .none
+            case .effect(let action):
+                return effectAction(&state, action)
 
             case .alert, .delegate:
                 return .none
@@ -96,11 +81,49 @@ public struct FeedbackFeature {
         }
         .ifLet(\.$alert, action: \.alert)
     }
-}
 
-extension AlertState where Action == FeedbackFeature.Action.Alert {
-    /// 전송 실패 알림. 입력한 내용은 그대로 두므로 다시 보내면 된다.
-    static func sendFailure(_ error: DomainError) -> Self? {
-        .failure(title: "Failed to send feedback.", error: error)
+    // MARK: - View
+
+    private func viewAction(_ state: inout State, _ action: Action.ViewAction) -> Effect<Action> {
+        switch action {
+        case let .categoryTapped(category):
+            state.category = category
+            return .none
+
+        case let .textChanged(text):
+            state.text = String(text.prefix(State.maxLength))
+            return .none
+
+        case .closeTapped:
+            return .run { _ in await dismiss() }
+
+        case .sendTapped:
+            guard state.canSend else { return .none }
+            state.isSending = true
+            return sendFeedback(category: state.category, content: state.text)
+        }
+    }
+
+    // MARK: - Effect
+
+    private func effectAction(_ state: inout State, _ action: Action.EffectAction) -> Effect<Action> {
+        switch action {
+        case let .sendResponse(result):
+            state.isSending = false
+            switch result {
+            case .success:
+                return .send(.delegate(.sent))
+            case let .failure(error):
+                state.alert = .feedbackSendFailure(error)
+                return .none
+            }
+        }
+    }
+
+    /// 시트가 닫혀 취소되면 `send`가 액션을 버린다. 알릴 대상이 없다.
+    private func sendFeedback(category: FeedbackCategory, content: String) -> Effect<Action> {
+        .run { send in
+            await send(.effect(.sendResponse(sendFeedbackUseCase.execute(category, content))))
+        }
     }
 }

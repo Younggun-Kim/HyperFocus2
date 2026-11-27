@@ -19,22 +19,8 @@ struct FeedbackView: View {
                     .padding(.top, 20)
                     .padding(.bottom, 40)
 
-                Text("Categories")
-                    .font(.body.bold())
-                    .foregroundStyle(.white)
-                    .padding(.bottom, 16)
-
-                VStack(alignment: .leading, spacing: 20) {
-                    ForEach(FeedbackCategory.allCases, id: \.self) { category in
-                        CategoryChip(
-                            title: category.title,
-                            isSelected: store.category == category
-                        ) {
-                            store.send(.categoryTapped(category))
-                        }
-                    }
-                }
-                .padding(.bottom, 50)
+                categorySection
+                    .padding(.bottom, 50)
 
                 input
                     .frame(height: 280)
@@ -54,7 +40,7 @@ struct FeedbackView: View {
 
     private var sendButton: some View {
         Button {
-            store.send(.sendTapped)
+            store.send(.view(.sendTapped))
         } label: {
             Group {
                 if store.isSending {
@@ -79,7 +65,7 @@ struct FeedbackView: View {
 
             HStack {
                 Button {
-                    store.send(.closeTapped)
+                    store.send(.view(.closeTapped))
                 } label: {
                     Image(systemName: "xmark")
                         .foregroundStyle(.white)
@@ -92,9 +78,28 @@ struct FeedbackView: View {
         }
     }
 
+    private var categorySection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Categories")
+                .font(.body.bold())
+                .foregroundStyle(.white)
+
+            VStack(alignment: .leading, spacing: 20) {
+                ForEach(FeedbackCategory.allCases, id: \.self) { category in
+                    CategoryChip(
+                        title: category.title,
+                        isSelected: store.category == category
+                    ) {
+                        store.send(.view(.categoryTapped(category)))
+                    }
+                }
+            }
+        }
+    }
+
     private var input: some View {
         ZStack(alignment: .topLeading) {
-            TextEditor(text: $store.text.sending(\.textChanged))
+            TextEditor(text: $store.text.sending(\.view.textChanged))
                 .autocorrectionDisabled()
                 .scrollContentBackground(.hidden)
                 .font(.title)

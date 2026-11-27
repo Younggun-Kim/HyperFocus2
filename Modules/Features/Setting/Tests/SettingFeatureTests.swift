@@ -222,10 +222,10 @@ struct SettingFeatureTests {
             $0.sendFeedbackUseCase.execute = { _, _ in .success(()) }
         }
 
-        await store.send(.destination(.presented(.feedback(.sendTapped)))) {
+        await store.send(.destination(.presented(.feedback(.view(.sendTapped))))) {
             $0.destination?.modify(\.feedback) { $0.isSending = true }
         }
-        await store.receive(\.destination.feedback.sendSucceeded) {
+        await store.receive(\.destination.feedback.effect.sendResponse) {
             $0.destination?.modify(\.feedback) { $0.isSending = false }
         }
         await store.receive(\.destination.feedback.delegate, .sent) {
