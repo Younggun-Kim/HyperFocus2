@@ -8,14 +8,21 @@ import DependenciesMacros
 public struct AuthRepository: Sendable {
     /// 저장된 토큰(익명 포함)이 있는지
     public var hasToken: @Sendable () -> Bool = { false }
+
     /// 기기 식별자로 익명 계정을 만들거나 다시 받는다.
     public var signInAnonymously: @Sendable () async -> Result<Void, DomainError> = { .failure(.unknown) }
+
     /// 지금 계정(익명)에 Apple 계정을 연동한다. 이미 다른 계정에 연동된 Apple 계정이면 `DomainError.conflict`.
     public var linkApple: @Sendable (_ request: AppleSignInRequest) async -> Result<Void, DomainError> = { _ in .failure(.unknown) }
+
     /// 이미 연동된 Apple 계정으로 로그인한다.
     public var signInWithApple: @Sendable (_ request: AppleSignInRequest) async -> Result<Void, DomainError> = { _ in .failure(.unknown) }
+
     /// 회원 정보 조회
     public var fetchProfile: @Sendable () async -> Result<Profile, DomainError> = { .failure(.unknown) }
+
+    /// 서버에 로그아웃을 알리고 저장된 토큰을 지운다. 요청이 실패해도 토큰은 지운다.
+    public var logout: @Sendable () async -> Result<Void, DomainError> = { .failure(.unknown) }
 }
 
 extension DependencyValues {
@@ -33,5 +40,6 @@ extension AuthRepository: TestDependencyKey {
         linkApple: { _ in .success(()) },
         signInWithApple: { _ in .success(()) },
         fetchProfile: { .success((Profile.mock)) },
+        logout: { .success(()) },
     )
 }

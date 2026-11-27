@@ -18,8 +18,14 @@ struct RootFeature {
         case setting(SettingFeature)
     }
 
+    enum Tab: Equatable {
+        case timer
+        case log
+    }
+
     @ObservableState
     struct State: Equatable {
+        var selectedTab = Tab.timer
         var splash = SplashFeature.State()
         var timer = FocusHomeFeature.State()
         var log = SessionLogHomeFeature.State()
@@ -53,6 +59,7 @@ struct RootFeature {
         case logPath(StackActionOf<LogPath>)
 
         case onAppear
+        case tabSelected(Tab)
         /// 앱이 다시 활성 상태가 됐다.
         case sceneActivated
         case effect(EffectAction)
@@ -78,6 +85,10 @@ struct RootFeature {
                 state.needsSignInRetry = false
                 return ensureSignedIn()
 
+            case .tabSelected(let tab):
+                state.selectedTab = tab
+                return .none
+
             case .splash(.delegate(.finished)):
                 state.isSplashFinished = true
                 return .none
@@ -88,6 +99,13 @@ struct RootFeature {
 
             case .logPath(.element(id: _, action: .setting(.delegate(.accountChanged)))):
                 return fetchProfile()
+
+            case .logPath(.element(id: _, action: .setting(.delegate(.logout)))):
+                state.$profile.withLock { $0 = nil }
+                state.logPath.removeAll()
+                state.selectedTab = .timer
+                // 토큰이 지워졌으니 익명 계정을 다시 받는다.
+                return ensureSignedIn()
 
             case .splash, .timer, .log, .logPath:
                 return .none

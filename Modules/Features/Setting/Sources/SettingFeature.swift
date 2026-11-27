@@ -5,6 +5,12 @@ import os
 
 @Reducer
 public struct SettingFeature {
+
+    @Dependency(\.fetchSettingUseCase) var fetchSettingUseCase
+    @Dependency(\.signInWithAppleUseCase) var signInWithAppleUseCase
+    @Dependency(\.updateSettingUseCase) var updateSettingUseCase
+    @Dependency(\.logoutUseCase) var logoutUseCase
+
     /// 설정 화면에서 띄우는 시트.
     @Reducer
     public enum Destination {
@@ -51,6 +57,7 @@ public struct SettingFeature {
         case settingLoadFailed(DomainError)
         case settingSaved(AppSetting)
         case settingSaveFailed(DomainError)
+        case logoutTapped
         case destination(PresentationAction<Destination.Action>)
         case delegate(Delegate)
 
@@ -58,6 +65,8 @@ public struct SettingFeature {
         public enum Delegate: Equatable {
             /// 로그인된 계정이 바뀌었다.
             case accountChanged
+            /// 로그아웃했다.
+            case logout
         }
     }
 
@@ -66,11 +75,6 @@ public struct SettingFeature {
         case save
         case signIn
     }
-
-    @Dependency(\.fetchSettingUseCase) var fetchSettingUseCase
-    @Dependency(\.signInWithAppleUseCase) var signInWithAppleUseCase
-    @Dependency(\.updateSettingUseCase) var updateSettingUseCase
-
     public init() {}
 
     public var body: some ReducerOf<Self> {
@@ -175,6 +179,13 @@ public struct SettingFeature {
 
             case .destination, .delegate:
                 return .none
+
+            case .logoutTapped:
+                return .run { send in
+                    // 서버 요청이 실패해도 이 기기에서는 로그아웃된 것으로 본다.
+                    _ = await logoutUseCase.execute()
+                    await send(.delegate(.logout))
+                }
             }
         }
         .ifLet(\.$destination, action: \.destination)

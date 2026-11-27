@@ -55,4 +55,11 @@ enum AuthAPI {
         var path: String { "/api/v1/auth/me" }
         var method: HTTPMethod { .get }
     }
+
+    struct Logout: APIEndpoint, Equatable {
+        typealias Response = EmptyResponse
+
+        var path: String { "/api/v1/auth/logout" }
+        var method: HTTPMethod { .post }
+    }
 }

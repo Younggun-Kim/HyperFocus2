@@ -170,6 +170,46 @@ struct RootFeatureTests {
         #expect(store.state.logPath[id: 0] == .setting(SettingFeature.State(profile: Shared(value: .mock))))
     }
 
+    // MARK: - 로그아웃
+
+    @Test func 탭을_고르면_선택된_탭이_바뀐다() async {
+        let store = TestStore(initialState: RootFeature.State()) {
+            RootFeature()
+        }
+
+        await store.send(.tabSelected(.log)) {
+            $0.selectedTab = .log
+        }
+    }
+
+    @Test func 로그아웃하면_타이머_탭으로_돌아가고_익명_계정을_다시_받는다() async {
+        var state = RootFeature.State()
+        state.isSignInChecked = true
+        state.selectedTab = .log
+        state.$profile.withLock { $0 = .mock }
+        state.logPath.append(.setting(SettingFeature.State(profile: state.$profile)))
+        let signedIn = LockIsolated(false)
+        let store = TestStore(initialState: state) {
+            RootFeature()
+        } withDependencies: {
+            $0.ensureSignedInUseCase.execute = {
+                signedIn.setValue(true)
+                return .success(())
+            }
+            $0.fetchProfileUseCase.execute = { .success(.mock) }
+        }
+
+        await store.send(.logPath(.element(id: 0, action: .setting(.delegate(.logout))))) {
+            $0.$profile.withLock { $0 = nil }
+            $0.logPath = StackState()
+            $0.selectedTab = .timer
+        }
+        await store.receive(\.effect.fetchProfileResponse) {
+            $0.$profile.withLock { $0 = .mock }
+        }
+        #expect(signedIn.value)
+    }
+
     // Home 구조로 바꾸면서 타이머 종료 → 기록 다시 불러오기 연결이 끊겼다.
     // FocusHome이 FocusTimer의 delegate를 Root로 올리면 이 테스트를 다시 작성한다.
     @Test(.disabled("Home 구조에서 sessionFinished delegate 재연결 전까지"))

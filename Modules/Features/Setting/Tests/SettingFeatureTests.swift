@@ -232,4 +232,18 @@ struct SettingFeatureTests {
             $0.destination = nil
         }
     }
+
+    // MARK: - 로그아웃
+
+    @Test(arguments: [true, false])
+    func 로그아웃을_누르면_요청_결과와_상관없이_로그아웃을_알린다(succeeds: Bool) async {
+        let store = TestStore(initialState: SettingFeature.State()) {
+            SettingFeature()
+        } withDependencies: {
+            $0.logoutUseCase.execute = { succeeds ? .success(()) : .failure(.offline) }
+        }
+
+        await store.send(.logoutTapped)
+        await store.receive(.delegate(.logout))
+    }
 }
