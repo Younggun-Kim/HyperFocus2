@@ -1,6 +1,7 @@
 import ComposableArchitecture
 import Domain
 import FocusTimer
+import Foundation
 import SessionLog
 import Setting
 import Testing
@@ -44,7 +45,7 @@ struct RootFeatureTests {
     // MARK: - 시작 흐름
 
     @Test func 스플래시와_시작_확인이_모두_끝나야_메인으로_넘어간다() async {
-        let store = TestStore(initialState: RootFeature.State()) {
+        let store = TestStore(initialState: .updateChecked) {
             RootFeature()
         } withDependencies: {
             $0.ensureSignedInUseCase.execute = { .success(()) }
@@ -65,7 +66,7 @@ struct RootFeatureTests {
     }
 
     @Test func 스플래시가_먼저_끝나도_시작_확인을_기다린다() async {
-        let store = TestStore(initialState: RootFeature.State()) {
+        let store = TestStore(initialState: .updateChecked) {
             RootFeature()
         } withDependencies: {
             $0.ensureSignedInUseCase.execute = { .success(()) }
@@ -88,7 +89,7 @@ struct RootFeatureTests {
     @Test func 로그인_확인에_실패하면_프로필을_부르지_않고_다시_활성화되면_재시도한다() async {
         let results = LockIsolated<[Result<Void, DomainError>]>([.failure(.offline), .success(())])
         let fetchCount = LockIsolated(0)
-        let store = TestStore(initialState: RootFeature.State()) {
+        let store = TestStore(initialState: .updateChecked) {
             RootFeature()
         } withDependencies: {
             $0.ensureSignedInUseCase.execute = { results.withValue { $0.removeFirst() } }
@@ -124,7 +125,7 @@ struct RootFeatureTests {
 
     @Test func 프로필_조회에_실패해도_메인으로_넘어가고_다시_활성화되면_재시도한다() async {
         let results = LockIsolated<[Result<Profile, DomainError>]>([.failure(.offline), .success(.mock)])
-        let store = TestStore(initialState: RootFeature.State()) {
+        let store = TestStore(initialState: .updateChecked) {
             RootFeature()
         } withDependencies: {
             $0.ensureSignedInUseCase.execute = { .success(()) }
@@ -213,7 +214,7 @@ struct RootFeatureTests {
     // MARK: - 세션 만료
 
     @Test func 세션이_만료되면_로그아웃처럼_타이머_탭으로_돌아가고_익명_계정을_다시_받는다() async {
-        var state = RootFeature.State()
+        var state = RootFeature.State.updateChecked
         state.isSplashFinished = true
         state.isSignInChecked = true
         state.selectedTab = .log
@@ -225,6 +226,7 @@ struct RootFeatureTests {
             RootFeature()
         } withDependencies: {
             $0.observeSessionExpiredUseCase.execute = { events }
+            $0.checkAppUpdateUseCase.execute = { .success(.upToDate) }
             $0.ensureSignedInUseCase.execute = {
                 signedIn.setValue(true)
                 return .success(())
@@ -233,6 +235,8 @@ struct RootFeatureTests {
         }
 
         let task = await store.send(.view(.task))
+        // 업데이트 확인은 기다릴 것이 없어 먼저 끝난다. 받은 뒤에 만료를 보내 순서를 고정한다.
+        await store.receive(\.effect.checkAppUpdateResponse)
         expire.yield()
         await store.receive(\.effect.sessionExpired) {
             $0.$profile.withLock { $0 = nil }
@@ -248,8 +252,135 @@ struct RootFeatureTests {
         await task.cancel()
     }
 
+    // MARK: - 업데이트 확인
+
+    @Test func 업데이트가_없으면_확인이_끝난다() async {
+        let store = updateStore(.success(.upToDate))
+
+        await store.send(.view(.task))
+        await store.receive(\.effect.checkAppUpdateResponse) {
+            $0.isUpdateChecked = true
+        }
+    }
+
+    @Test func 업데이트_확인에_실패해도_막지_않는다() async {
+        let store = updateStore(.failure(.offline))
+
+        await store.send(.view(.task))
+        await store.receive(\.effect.checkAppUpdateResponse) {
+            $0.isUpdateChecked = true
+        }
+    }
+
+    @Test func 스플래시_연출이_끝난_뒤에_업데이트_알림을_띄운다() async {
+        let update = AppUpdate(policy: .optional)
+        let store = updateStore(.success(update))
+
+        await store.send(.view(.task))
+        await store.receive(\.effect.checkAppUpdateResponse) {
+            $0.pendingUpdate = update
+        }
+        #expect(store.state.alert == nil)
+
+        await store.send(.splash(.delegate(.finished))) {
+            $0.isSplashFinished = true
+            $0.alert = .optionalUpdate
+        }
+    }
+
+    @Test func 스플래시가_먼저_끝났으면_응답이_오자마자_알림을_띄운다() async {
+        var state = RootFeature.State()
+        state.isSplashFinished = true
+        let update = AppUpdate(policy: .required)
+        let store = updateStore(.success(update), state: state)
+
+        await store.send(.view(.task))
+        await store.receive(\.effect.checkAppUpdateResponse) {
+            $0.pendingUpdate = update
+            $0.alert = .requiredUpdate
+        }
+    }
+
+    @Test func 권장_업데이트를_미루면_지금_버전으로_들어간다() async {
+        let store = updateStore(.success(.upToDate), state: alerted(AppUpdate(policy: .optional)))
+
+        await store.send(.alert(.presented(.laterTapped))) {
+            $0.alert = nil
+            $0.isUpdateChecked = true
+        }
+        #expect(!store.state.isLaunching)
+    }
+
+    @Test func 권장_업데이트를_누르면_스토어를_열고_들어간다() async {
+        let storeURL = URL(string: "https://apps.apple.com/app/id1")!
+        let opened = LockIsolated<URL?>(nil)
+        let store = updateStore(.success(.upToDate), state: alerted(AppUpdate(policy: .optional, storeURL: storeURL))) {
+            opened.setValue($0)
+        }
+
+        await store.send(.alert(.presented(.updateTapped))) {
+            $0.alert = nil
+            $0.isUpdateChecked = true
+        }
+        #expect(opened.value == storeURL)
+    }
+
+    @Test func 강제_업데이트는_스토어를_열어도_알림이_다시_떠서_들어갈_수_없다() async {
+        let opened = LockIsolated<URL?>(nil)
+        let store = updateStore(.success(.upToDate), state: alerted(AppUpdate(policy: .required))) {
+            opened.setValue($0)
+        }
+
+        // 같은 알림을 새로 띄우므로 상태로는 바뀐 것이 없다.
+        await store.send(.alert(.presented(.updateTapped)))
+        #expect(store.state.alert == .requiredUpdate)
+        #expect(store.state.isLaunching)
+        // 서버가 주소를 주지 않으면 기본 App Store 주소를 연다.
+        #expect(opened.value == RootFeature.appStoreURL)
+    }
+
     // Home 구조로 바꾸면서 타이머 종료 → 기록 다시 불러오기 연결이 끊겼다.
     // FocusHome이 FocusTimer의 delegate를 Root로 올리면 이 테스트를 다시 작성한다.
     @Test(.disabled("Home 구조에서 sessionFinished delegate 재연결 전까지"))
     func 타이머가_끝나면_기록을_다시_불러온다() {}
+}
+
+// MARK: - Helpers
+
+private extension RootFeature.State {
+    /// 업데이트 확인을 마친 상태. 시작 흐름 테스트가 로그인 확인만 보게 한다.
+    static var updateChecked: Self {
+        var state = Self()
+        state.isUpdateChecked = true
+        return state
+    }
+}
+
+/// 스플래시가 끝나 업데이트 알림이 떠 있는 상태.
+private func alerted(_ update: AppUpdate) -> RootFeature.State {
+    var state = RootFeature.State()
+    state.isSplashFinished = true
+    state.isSignInChecked = true
+    state.pendingUpdate = update
+    state.alert = update.policy == .required ? .requiredUpdate : .optionalUpdate
+    return state
+}
+
+/// 업데이트 확인 결과를 정해 둔 Store. 세션 만료 구독은 바로 끝나게 한다.
+@MainActor
+private func updateStore(
+    _ result: Result<AppUpdate, DomainError>,
+    state: RootFeature.State = RootFeature.State(),
+    onOpenURL: @escaping @Sendable (URL) -> Void = { _ in }
+) -> TestStoreOf<RootFeature> {
+    TestStore(initialState: state) {
+        RootFeature()
+    } withDependencies: {
+        $0.checkAppUpdateUseCase.execute = { result }
+        $0.observeSessionExpiredUseCase.execute = { AsyncStream { $0.finish() } }
+        $0.openURL = OpenURLEffect { url in
+            onOpenURL(url)
+            return true
+        }
+    }
 }

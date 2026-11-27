@@ -21,6 +21,7 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: store.isLaunching)
+        .alert($store.scope(state: \.alert, action: \.alert))
         .onAppear {
             store.send(.view(.onAppear))
         }

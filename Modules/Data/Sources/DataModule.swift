@@ -14,6 +14,7 @@ public enum DataModule {
             $0.settingRepository = SettingRepository.liveValue
             $0.feedbackRepository = FeedbackRepository.liveValue
             $0.authRepository = AuthRepository.liveValue
+            $0.appVersionRepository = AppVersionRepository.liveValue
         }
     }
 }
