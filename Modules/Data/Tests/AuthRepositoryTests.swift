@@ -190,4 +190,29 @@ struct AuthRepositoryTests {
             try await repository(service, stored: LockIsolated(issued)).fetchProfile().get()
         }
     }
+
+    // MARK: - 로그아웃
+
+    @Test func 로그아웃은_토큰을_붙여_보내고_저장된_토큰을_지운다() async throws {
+        let service = FakeAPIService(.json(#"{"success": true}"#))
+        let stored = LockIsolated<AuthToken?>(issued)
+
+        try await repository(service, stored: stored).logout().get()
+
+        let endpoint = try #require(service.endpoints.first as? AuthAPI.Logout)
+        #expect(endpoint.path == "/api/v1/auth/logout")
+        #expect(endpoint.method == .post)
+        #expect(endpoint.requiresAuth == true)
+        #expect(stored.value == nil)
+    }
+
+    @Test func 로그아웃_요청이_실패해도_토큰을_지우고_에러를_돌려준다() async {
+        let service = FakeAPIService(.failure(APIError.networkError("test")))
+        let stored = LockIsolated<AuthToken?>(issued)
+
+        await #expect(throws: DomainError.self) {
+            try await repository(service, stored: stored).logout().get()
+        }
+        #expect(stored.value == nil)
+    }
 }

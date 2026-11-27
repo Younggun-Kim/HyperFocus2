@@ -50,9 +50,12 @@ extension AuthRepository: @retroactive DependencyKey {
                     .flatMap { response in response.toEntity() }
             },
             logout: {
-                await service.request(AuthAPI.Logout())
+                let result = await service.request(AuthAPI.Logout())
                     .domainResult("로그아웃")
                     .map { _ in }
+                // 서버 요청이 실패해도 이 기기에서는 로그아웃한다.
+                tokens.update(nil)
+                return result
             },
         )
     }

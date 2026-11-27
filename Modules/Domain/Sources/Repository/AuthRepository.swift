@@ -21,7 +21,7 @@ public struct AuthRepository: Sendable {
     /// 회원 정보 조회
     public var fetchProfile: @Sendable () async -> Result<Profile, DomainError> = { .failure(.unknown) }
 
-    ///로그아웃
+    /// 서버에 로그아웃을 알리고 저장된 토큰을 지운다. 요청이 실패해도 토큰은 지운다.
     public var logout: @Sendable () async -> Result<Void, DomainError> = { .failure(.unknown) }
 }
 

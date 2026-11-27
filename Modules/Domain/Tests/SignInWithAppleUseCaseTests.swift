@@ -32,7 +32,8 @@ struct SignInWithAppleUseCaseTests {
                 calls.withValue { $0.append("login") }
                 return .success(())
             },
-            fetchProfile: { .failure(.unknown) }
+            fetchProfile: { .failure(.unknown) },
+            logout: { .failure(.unknown) }
         )
     }
     

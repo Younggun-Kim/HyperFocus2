@@ -32,11 +32,11 @@ struct RootView: View {
     }
 
     private var main: some View {
-        TabView {
-            Tab("타이머", systemImage: "timer") {
+        TabView(selection: $store.selectedTab.sending(\.tabSelected)) {
+            Tab("타이머", systemImage: "timer", value: RootFeature.Tab.timer) {
                 FocusHomeView(store: store.scope(state: \.timer, action: \.timer))
             }
-            Tab("기록", systemImage: "list.bullet") {
+            Tab("기록", systemImage: "list.bullet", value: RootFeature.Tab.log) {
                 NavigationStack(path: $store.scope(state: \.logPath, action: \.logPath)) {
                     SessionLogHomeView(store: store.scope(state: \.log, action: \.log))
                 } destination: { store in

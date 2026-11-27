@@ -46,7 +46,7 @@ public struct SettingFeature {
         }
     }
 
-    public enum Action {
+    public enum Action: Equatable {
         case onAppear
         case deviceSettingChanged(type: SettingMenuType.DeviceSetting, isOn: Bool)
         case aboutUsTapped(SettingMenuType.AboutUs)
@@ -60,19 +60,13 @@ public struct SettingFeature {
         case logoutTapped
         case destination(PresentationAction<Destination.Action>)
         case delegate(Delegate)
-        case effect(Effect)
 
         @CasePathable
-        public enum Delegate {
+        public enum Delegate: Equatable {
             /// 로그인된 계정이 바뀌었다.
             case accountChanged
-
+            /// 로그아웃했다.
             case logout
-        }
-
-        @CasePathable
-        public enum Effect {
-            case logoutResponse(Result<Void, DomainError>)
         }
     }
 
@@ -108,7 +102,7 @@ public struct SettingFeature {
                         case .failure(let error): await send(.settingSaveFailed(error))
                         }
                     }
-                        .cancellable(id: CancelID.save, cancelInFlight: true)
+                    .cancellable(id: CancelID.save, cancelInFlight: true)
                 )
 
             case let .settingLoaded(setting), let .settingSaved(setting):
@@ -188,21 +182,13 @@ public struct SettingFeature {
 
             case .logoutTapped:
                 return .run { send in
-                    await send(.effect(.logoutResponse(logoutUseCase.execute())))
+                    // 서버 요청이 실패해도 이 기기에서는 로그아웃된 것으로 본다.
+                    _ = await logoutUseCase.execute()
+                    await send(.delegate(.logout))
                 }
-
-            case .effect(let action):
-                return effectAction(&state, action)
             }
         }
         .ifLet(\.$destination, action: \.destination)
-    }
-
-    func effectAction(_ state: inout State, _ action: Action.Effect) -> Effect<Action> {
-        switch action {
-        case .logoutResponse:
-            return .send(.delegate(.logout))
-        }
     }
 }
 
