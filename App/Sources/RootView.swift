@@ -21,8 +21,12 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.3), value: store.isLaunching)
+        .alert($store.scope(state: \.alert, action: \.alert))
         .onAppear {
             store.send(.view(.onAppear))
+        }
+        .task {
+            await store.send(.view(.task)).finish()
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {

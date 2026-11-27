@@ -26,6 +26,10 @@ public struct AuthRepository: Sendable {
 
     /// 탈퇴
     public var withdraw: @Sendable () async -> Result<Void, DomainError> = { .failure(.unknown) }
+
+    /// 세션 만료 이벤트. refresh token이 거절되면 값이 하나 흐른다. 이때 토큰은 이미 지워져 있다.
+    /// 부를 때마다 새 스트림을 돌려주고, 구독한 동안 생긴 만료만 받는다.
+    public var sessionExpired: @Sendable () -> AsyncStream<Void> = { AsyncStream { $0.finish() } }
 }
 
 extension DependencyValues {
@@ -45,5 +49,6 @@ extension AuthRepository: TestDependencyKey {
         fetchProfile: { .success((Profile.mock)) },
         logout: { .success(()) },
         withdraw: { .success(()) },
+        sessionExpired: { AsyncStream { $0.finish() } },
     )
 }

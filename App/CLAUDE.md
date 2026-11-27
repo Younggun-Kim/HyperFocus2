@@ -6,7 +6,7 @@
 
 - `HyperFocusApp.init`에서 Store를 만들기 **전에** `DataModule.bootstrap()`을 호출한다. 위치를 옮기지 않는다.
 - Feature는 `RootFeature`에서 조립하고, 화면 이동은 자식의 delegate 액션으로 처리한다.
-- 세션 만료는 `RootFeature`가 Domain UseCase(예: `SessionEventUseCase`의 `AsyncStream`)를 구독해서 로그인 흐름으로 보낸다. 개별 Feature에서 처리하지 않는다.
+- 세션 만료는 `RootFeature`가 `ObserveSessionExpiredUseCase`의 `AsyncStream`을 `.task`에서 구독해서 로그아웃과 같은 흐름(계정 비우기 → 타이머 탭 → 익명 로그인)으로 보낸다. 개별 Feature에서 처리하지 않는다.
 
 ## 설정과 비밀값
 

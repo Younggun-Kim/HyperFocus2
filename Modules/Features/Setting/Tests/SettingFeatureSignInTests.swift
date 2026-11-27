@@ -13,7 +13,7 @@ struct SettingFeatureSignInTests {
         userID: "test-user", identityToken: "test-token", authorizationCode: "test-code", name: nil, email: nil
     )
 
-    @Test func 인증되면_UseCase로_보내고_끝나면_계정이_바뀌었다고_알린다() async {
+    @Test func 인증되면_UseCase로_보내고_새_프로필을_받을_때까지_로딩을_유지한다() async {
         let received = LockIsolated<AppleSignInRequest?>(nil)
         let store = TestStore(initialState: SettingFeature.State()) {
             SettingFeature()
@@ -22,16 +22,37 @@ struct SettingFeatureSignInTests {
                 received.setValue($0)
                 return .success(())
             }
+            $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
         await store.send(.view(.appleSignInCompleted(.authorized(credential)))) {
             $0.isSigningIn = true
         }
-        await store.receive(\.effect.signInResponse) {
+        // 로그인이 끝나도 프로필을 받기 전까지는 로딩이다. 로그인 버튼이 다시 보이지 않게 한다.
+        await store.receive(\.effect.signInResponse)
+        await store.receive(\.effect.fetchProfileResponse) {
             $0.isSigningIn = false
         }
-        await store.receive(\.delegate.accountChanged)
+        await store.receive(\.delegate.accountChanged, Profile.mock)
         #expect(received.value == credential.signInRequest)
+    }
+
+    @Test func 새_프로필을_받지_못하면_알리지_않고_소유자에게_다시_불러오게_한다() async {
+        let store = TestStore(initialState: SettingFeature.State()) {
+            SettingFeature()
+        } withDependencies: {
+            $0.signInWithAppleUseCase.execute = { _ in .success(()) }
+            $0.fetchProfileUseCase.execute = { .failure(.offline) }
+        }
+
+        await store.send(.view(.appleSignInCompleted(.authorized(credential)))) {
+            $0.isSigningIn = true
+        }
+        await store.receive(\.effect.signInResponse)
+        await store.receive(\.effect.fetchProfileResponse) {
+            $0.isSigningIn = false
+        }
+        await store.receive(\.delegate.accountChanged, nil)
     }
 
     @Test func 서버_로그인이_실패하면_알림을_띄운다() async {

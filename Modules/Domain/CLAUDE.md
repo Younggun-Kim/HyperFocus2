@@ -21,7 +21,7 @@ Entity, Repository 포트, UseCase를 두는 모듈. 공통 규칙은 루트 `CL
 - `cancelled`는 실패가 아니라 흐름이다. Feature는 알리지 않는다.
 - 비즈니스 규칙 위반(예: `FocusSessionError.alreadyRunning`)을 `Result`에 싣는 방법은 첫 사례가 생길 때 정한다.
 - 에러 타입은 `Sendable, Equatable`로 만들어 `TestStore`에서 비교할 수 있게 한다. 사용자 문구는 넣지 않는다.
-- 세션 만료는 UseCase(예: `SessionEventUseCase`의 `AsyncStream`)로 앱 전역 이벤트로 노출한다.
+- 세션 만료는 UseCase(`ObserveSessionExpiredUseCase`의 `AsyncStream`)로 앱 전역 이벤트로 노출한다. 이벤트 스트림은 `Result`가 아니라 `AsyncStream`을 돌려주는 예외다.
 
 ## 테스트
 

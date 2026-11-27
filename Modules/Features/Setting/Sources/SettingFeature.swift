@@ -28,11 +28,15 @@ public struct SettingFeature {
         var setting: AppSetting
         /// 서버가 마지막으로 확정한 값. 저장에 실패하면 이 값으로 되돌린다.
         var savedSetting: AppSetting
-        /// Apple 로그인 요청을 서버에 보내는 중. 버튼을 또 눌러도 한 번만 보낸다.
+        /// Apple 로그인 요청을 보내고 새 계정의 프로필을 받는 중. 버튼을 또 눌러도 한 번만 보낸다.
+        /// 프로필까지 받아야 끝난다. 그 사이 계정 카드가 로그인 버튼으로 돌아가 보이지 않게 로딩을 보여 준다.
         var isSigningIn = false
         /// 지금 로그인된 계정. 소유자가 넘겨준 참조라 여기서는 읽기만 한다.
+        /// 로그인 뒤 새 프로필은 `accountChanged`로 소유자에게 넘겨 바꾸게 한다.
         @Shared var profile: Profile?
         @Presents var destination: Destination.State?
+        /// 화면 아래에 잠깐 띄우는 안내. 뷰가 시간이 지나면 `toastDismissed`로 지운다.
+        var toast: String?
 
         /// Apple 계정으로 로그인했을 때만 값이 있다.
         var email: String? {
@@ -62,6 +66,7 @@ public struct SettingFeature {
             case appleSignInCompleted(AppleSignInResult)
             case logoutTapped
             case withdrawalTapped
+            case toastDismissed
         }
 
         /// UseCase 응답.
@@ -70,13 +75,14 @@ public struct SettingFeature {
             case fetchSettingResponse(Result<AppSetting, DomainError>)
             case updateSettingResponse(Result<AppSetting, DomainError>)
             case signInResponse(Result<Void, DomainError>)
+            case fetchProfileResponse(Result<Profile, DomainError>)
             case withdrawResponse(Result<Void, DomainError>)
         }
 
         @CasePathable
         public enum Delegate: Equatable {
-            /// 로그인된 계정이 바뀌었다.
-            case accountChanged
+            /// 로그인된 계정이 바뀌었다. 새 프로필을 받지 못했으면 nil이라 소유자가 다시 불러온다.
+            case accountChanged(Profile?)
             /// 로그아웃했다.(or 탈퇴)
             case logout
         }
@@ -86,11 +92,13 @@ public struct SettingFeature {
         case load
         case save
         case signIn
+        case fetchProfile
     }
 
     @Dependency(\.fetchSettingUseCase) var fetchSettingUseCase
     @Dependency(\.updateSettingUseCase) var updateSettingUseCase
     @Dependency(\.signInWithAppleUseCase) var signInWithAppleUseCase
+    @Dependency(\.fetchProfileUseCase) var fetchProfileUseCase
     @Dependency(\.logoutUseCase) var logoutUseCase
     @Dependency(\.withdrawUseCase) var withdrawUseCase
 
@@ -107,6 +115,7 @@ public struct SettingFeature {
 
             case .destination(.presented(.feedback(.delegate(.sent)))):
                 state.destination = nil
+                state.toast = "Message received! Thanks. 💌"
                 return .none
 
             case .destination(.presented(.alert(.confirmWithdrawal))):
@@ -164,6 +173,10 @@ public struct SettingFeature {
         case .withdrawalTapped:
             state.presentAlert(.withdrawalConfirm)
             return .none
+
+        case .toastDismissed:
+            state.toast = nil
+            return .none
         }
     }
 
@@ -208,14 +221,25 @@ public struct SettingFeature {
             return .none
 
         case let .signInResponse(result):
-            state.isSigningIn = false
             switch result {
             case .success:
+                // 로그인 중 상태를 유지한 채 새 계정의 프로필을 받는다.
                 Logger.setting.info("Apple 로그인 완료")
-                return .send(.delegate(.accountChanged))
+                return fetchProfile()
             case let .failure(error):
+                state.isSigningIn = false
                 state.presentAlert(.appleSignInFailure(error))
                 return .none
+            }
+
+        case let .fetchProfileResponse(result):
+            state.isSigningIn = false
+            switch result {
+            case let .success(profile):
+                return .send(.delegate(.accountChanged(profile)))
+            case .failure:
+                // 로그인은 됐으니 실패를 알리지 않는다. 소유자가 다시 불러오고 실패하면 재시도를 맡는다.
+                return .send(.delegate(.accountChanged(nil)))
             }
 
         case let .withdrawResponse(result):
@@ -250,6 +274,13 @@ public struct SettingFeature {
             await send(.effect(.signInResponse(signInWithAppleUseCase.execute(request))))
         }
         .cancellable(id: CancelID.signIn, cancelInFlight: true)
+    }
+
+    private func fetchProfile() -> Effect<Action> {
+        .run { send in
+            await send(.effect(.fetchProfileResponse(fetchProfileUseCase.execute())))
+        }
+        .cancellable(id: CancelID.fetchProfile, cancelInFlight: true)
     }
 
     private func logout() -> Effect<Action> {

@@ -18,11 +18,15 @@ enum DataNetwork {
                 ).map { $0.toAuthToken() }
             },
             onSessionExpired: {
-                // TODO: 세션 만료를 Domain UseCase로 내보내 RootFeature가 처리하게 한다(계정 기능 PR).
                 Logger.data.notice("세션 만료: refresh token이 거절됐다")
+                // `AuthRepository.sessionExpired` → `ObserveSessionExpiredUseCase` → RootFeature로 간다.
+                sessionExpiry.notify()
             }
         )
     }()
+
+    /// 세션 만료를 받는 곳. `TokenManager`가 만료를 알리면 구독 중인 스트림에 모두 흐른다.
+    static let sessionExpiry = SessionExpiryBroadcaster()
 
     /// App의 xcconfig(`API_BASE_URL`) → Info.plist로 들어온 값
     static let apiBaseURL: URL = {

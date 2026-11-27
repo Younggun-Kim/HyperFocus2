@@ -18,7 +18,7 @@
 ## 에러
 
 - `APIError`는 **통신 사실만** 담는다(상태 코드, 디코딩, 세션 만료). 사용자에게 보여 줄 문구를 갖지 않는다. 문구는 Feature가 만든다.
-- 세션 만료는 호출 하나의 에러가 아니라 앱 전역 이벤트다. 만료 알림은 이 모듈이 내보내고, Domain UseCase가 받아서 App에 노출한다.
+- 세션 만료는 호출 하나의 에러가 아니라 앱 전역 이벤트다. 만료 알림은 이 모듈이 내보내고(`TokenManager`의 `onSessionExpired`), Data가 `AuthRepository.sessionExpired`로, Domain UseCase가 App에 노출한다.
 - (미적용) `Sources/Error/APIError+UserMessage.swift`는 이 규칙을 어긴다. 사용자 문구는 Feature로 옮기고, `APIError`의 `LocalizedError` 채택도 다시 검토한다.
 
 ## 테스트
