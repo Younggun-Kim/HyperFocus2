@@ -10,7 +10,7 @@ extension AuthRepository: @retroactive DependencyKey {
         tokens: .manager(DataNetwork.tokenManager),
         deviceID: { await DeviceInfo.vendorID }
     )
-
+    
     /// - Parameters:
     ///   - tokens: 받은 토큰을 넣는 곳. 키체인만 바꾸면 인터셉터가 옛 토큰을 계속 붙이므로 `TokenManager`를 거친다.
     ///   - deviceID: 익명 로그인 때마다 읽는다.
@@ -28,7 +28,7 @@ extension AuthRepository: @retroactive DependencyKey {
                 tokens.update(token.toAuthToken())
             }
         }
-
+        
         return Self(
             hasToken: { tokens.current() != nil },
             signInAnonymously: {
@@ -43,7 +43,12 @@ extension AuthRepository: @retroactive DependencyKey {
             },
             signInWithApple: { request in
                 await issueToken(AuthAPI.LoginApple(request: AppleLoginRequestDTO(request)), "Apple 로그인")
-            }
+            },
+            fetchProfile: {
+                await service.request(AuthAPI.Me())
+                    .domainResult("프로필 조회")
+                    .flatMap { response in response.toEntity() }
+            },
         )
     }
 }
