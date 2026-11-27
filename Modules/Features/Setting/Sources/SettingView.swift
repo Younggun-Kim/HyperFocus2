@@ -104,7 +104,7 @@ public struct SettingView: View {
             }
 
             Button {
-                // TODO: 계정 삭제 연결
+                store.send(.view(.withdrawalTapped))
             } label: {
                 Text("Delete Account")
                     .font(.caption)

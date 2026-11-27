@@ -21,8 +21,11 @@ public struct AuthRepository: Sendable {
     /// 회원 정보 조회
     public var fetchProfile: @Sendable () async -> Result<Profile, DomainError> = { .failure(.unknown) }
 
-    /// 서버에 로그아웃을 알리고 저장된 토큰을 지운다. 요청이 실패해도 토큰은 지운다.
+    /// 로그아웃
     public var logout: @Sendable () async -> Result<Void, DomainError> = { .failure(.unknown) }
+
+    /// 탈퇴
+    public var withdraw: @Sendable () async -> Result<Void, DomainError> = { .failure(.unknown) }
 }
 
 extension DependencyValues {
@@ -41,5 +44,6 @@ extension AuthRepository: TestDependencyKey {
         signInWithApple: { _ in .success(()) },
         fetchProfile: { .success((Profile.mock)) },
         logout: { .success(()) },
+        withdraw: { .success(()) },
     )
 }

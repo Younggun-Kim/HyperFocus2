@@ -26,7 +26,8 @@ struct EnsureSignedInUseCaseTests {
             linkApple: { _ in .success(()) },
             signInWithApple: { _ in .success(()) },
             fetchProfile: { .failure(.unknown) },
-            logout: { .failure(.unknown) }
+            logout: { .failure(.unknown) },
+            withdraw: { .failure(.unknown) }
         )
     }
     
