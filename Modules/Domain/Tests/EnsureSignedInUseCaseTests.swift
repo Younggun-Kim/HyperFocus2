@@ -24,7 +24,8 @@ struct EnsureSignedInUseCaseTests {
                 return signInAnonymously
             },
             linkApple: { _ in .success(()) },
-            signInWithApple: { _ in .success(()) }
+            signInWithApple: { _ in .success(()) },
+            fetchProfile: { .failure(.unknown) }
         )
     }
     

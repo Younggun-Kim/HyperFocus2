@@ -43,16 +43,18 @@ struct RootFeatureTests {
 
     // MARK: - 시작 흐름
 
-    @Test func 스플래시와_로그인_확인이_모두_끝나야_메인으로_넘어간다() async {
+    @Test func 스플래시와_시작_확인이_모두_끝나야_메인으로_넘어간다() async {
         let store = TestStore(initialState: RootFeature.State()) {
             RootFeature()
         } withDependencies: {
             $0.ensureSignedInUseCase.execute = { .success(()) }
+            $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
         await store.send(.onAppear)
-        await store.receive(\.effect.ensureSignedInResponse) {
+        await store.receive(\.effect.fetchProfileResponse) {
             $0.isSignInChecked = true
+            $0.$profile.withLock { $0 = .mock }
         }
         #expect(store.state.isLaunching)
 
@@ -62,11 +64,12 @@ struct RootFeatureTests {
         #expect(!store.state.isLaunching)
     }
 
-    @Test func 스플래시가_먼저_끝나도_로그인_확인을_기다린다() async {
+    @Test func 스플래시가_먼저_끝나도_시작_확인을_기다린다() async {
         let store = TestStore(initialState: RootFeature.State()) {
             RootFeature()
         } withDependencies: {
             $0.ensureSignedInUseCase.execute = { .success(()) }
+            $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
         await store.send(.splash(.delegate(.finished))) {
@@ -75,38 +78,96 @@ struct RootFeatureTests {
         #expect(store.state.isLaunching)
 
         await store.send(.onAppear)
-        await store.receive(\.effect.ensureSignedInResponse) {
+        await store.receive(\.effect.fetchProfileResponse) {
             $0.isSignInChecked = true
+            $0.$profile.withLock { $0 = .mock }
         }
         #expect(!store.state.isLaunching)
     }
 
-    @Test func 로그인_확인에_실패해도_메인으로_넘어가고_다시_활성화되면_재시도한다() async {
+    @Test func 로그인_확인에_실패하면_프로필을_부르지_않고_다시_활성화되면_재시도한다() async {
         let results = LockIsolated<[Result<Void, DomainError>]>([.failure(.offline), .success(())])
+        let fetchCount = LockIsolated(0)
         let store = TestStore(initialState: RootFeature.State()) {
             RootFeature()
         } withDependencies: {
             $0.ensureSignedInUseCase.execute = { results.withValue { $0.removeFirst() } }
+            $0.fetchProfileUseCase.execute = {
+                fetchCount.withValue { $0 += 1 }
+                return .success(.mock)
+            }
         }
 
         await store.send(.splash(.delegate(.finished))) {
             $0.isSplashFinished = true
         }
         await store.send(.onAppear)
-        await store.receive(\.effect.ensureSignedInResponse) {
+        await store.receive(\.effect.fetchProfileResponse) {
             $0.isSignInChecked = true
             $0.needsSignInRetry = true
         }
         #expect(!store.state.isLaunching)
+        #expect(fetchCount.value == 0)
 
         await store.send(.sceneActivated) {
             $0.needsSignInRetry = false
         }
-        await store.receive(\.effect.ensureSignedInResponse)
+        await store.receive(\.effect.fetchProfileResponse) {
+            $0.$profile.withLock { $0 = .mock }
+        }
         #expect(results.isEmpty)
+        #expect(fetchCount.value == 1)
 
         // 성공한 뒤에는 다시 활성화돼도 요청하지 않는다. 요청하면 빈 배열에서 꺼내다 실패한다.
         await store.send(.sceneActivated)
+    }
+
+    @Test func 프로필_조회에_실패해도_메인으로_넘어가고_다시_활성화되면_재시도한다() async {
+        let results = LockIsolated<[Result<Profile, DomainError>]>([.failure(.offline), .success(.mock)])
+        let store = TestStore(initialState: RootFeature.State()) {
+            RootFeature()
+        } withDependencies: {
+            $0.ensureSignedInUseCase.execute = { .success(()) }
+            $0.fetchProfileUseCase.execute = { results.withValue { $0.removeFirst() } }
+        }
+
+        await store.send(.splash(.delegate(.finished))) {
+            $0.isSplashFinished = true
+        }
+        await store.send(.onAppear)
+        await store.receive(\.effect.fetchProfileResponse) {
+            $0.isSignInChecked = true
+            $0.needsSignInRetry = true
+        }
+        #expect(!store.state.isLaunching)
+        #expect(store.state.profile == nil)
+
+        await store.send(.sceneActivated) {
+            $0.needsSignInRetry = false
+        }
+        await store.receive(\.effect.fetchProfileResponse) {
+            $0.$profile.withLock { $0 = .mock }
+        }
+    }
+
+    // MARK: - 프로필 공유
+
+    @Test func 설정_화면은_Root의_프로필을_함께_본다() async {
+        var state = RootFeature.State()
+        state.isSignInChecked = true
+        state.logPath.append(.setting(SettingFeature.State(profile: state.$profile)))
+        let store = TestStore(initialState: state) {
+            RootFeature()
+        } withDependencies: {
+            $0.fetchProfileUseCase.execute = { .success(.mock) }
+        }
+
+        // 설정 화면에서 Apple 로그인에 성공하면 Root가 프로필을 다시 불러온다.
+        await store.send(.logPath(.element(id: 0, action: .setting(.delegate(.accountChanged)))))
+        await store.receive(\.effect.fetchProfileResponse) {
+            $0.$profile.withLock { $0 = .mock }
+        }
+        #expect(store.state.logPath[id: 0] == .setting(SettingFeature.State(profile: Shared(value: .mock))))
     }
 
     // Home 구조로 바꾸면서 타이머 종료 → 기록 다시 불러오기 연결이 끊겼다.

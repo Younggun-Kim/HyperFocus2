@@ -1,11 +1,34 @@
 import ComposableArchitecture
 import Domain
+import Foundation
 import Testing
 @testable import Setting
 
 @MainActor
 struct SettingFeatureTests {
     private let stored = AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: true)
+
+    // MARK: - 계정
+
+    @Test func 프로필이_없거나_익명이면_email이_없다() {
+        #expect(SettingFeature.State().email == nil)
+
+        let anonymous = Profile(
+            userId: "test-user", email: "", name: "", profileImageUrl: nil, provider: .anonymous,
+            role: "USER", status: "ACTIVE", lastLoginAt: .distantPast, createdAt: .distantPast,
+            profileImageUrlOptional: nil
+        )
+        #expect(SettingFeature.State(profile: Shared(value: anonymous)).email == nil)
+    }
+
+    @Test func 넘겨받은_프로필이_바뀌면_email도_따라_바뀐다() {
+        let profile = Shared<Profile?>(value: nil)
+        let state = SettingFeature.State(profile: profile)
+        #expect(state.email == nil)
+
+        profile.withLock { $0 = .mock }
+        #expect(state.email == Profile.mock.email)
+    }
 
     // MARK: - 조회
 

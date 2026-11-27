@@ -11,7 +11,7 @@ public struct SettingView: View {
     
     public var body: some View {
         VStack(spacing: 20) {
-            AppleLoginView { store.send(.appleSignInCompleted($0)) }
+            AppleLoginView(email: store.email) { store.send(.appleSignInCompleted($0)) }
                 .padding(.bottom, 40)
             
             VStack(spacing: 16) {
@@ -46,26 +46,28 @@ public struct SettingView: View {
             }
             .padding(.bottom, 16)
             
-            // TODO: - Apple 로그인 했을 때만 노출
-            HStack(spacing: 30) {
-                Button(action: {
+            if store.email != nil {
+                HStack(spacing: 30) {
+                    Button(action: {
                     
-                }) {
-                    Text("Sign Out")
-                        .font(.caption)
-                        .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
-                }
-                Button(action: {
+                    }) {
+                        Text("Sign Out")
+                            .font(.caption)
+                            .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
+                    }
+                    Button(action: {
                     
-                }) {
-                    Text("Delete Account")
-                        .font(.caption)
-                        .foregroundStyle(DesignSystemAsset.Colors.systemRed.swiftUIColor)
+                    }) {
+                        Text("Delete Account")
+                            .font(.caption)
+                            .foregroundStyle(DesignSystemAsset.Colors.systemRed.swiftUIColor)
+                    }
                 }
-            }
-            .padding(.top, 32)
-            .padding(.bottom, 10)
+                .padding(.top, 32)
+                .padding(.bottom, 10)
             
+            }
+
             Spacer()
         }
         .padding()

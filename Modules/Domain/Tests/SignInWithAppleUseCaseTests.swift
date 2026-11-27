@@ -31,7 +31,8 @@ struct SignInWithAppleUseCaseTests {
             signInWithApple: { _ in
                 calls.withValue { $0.append("login") }
                 return .success(())
-            }
+            },
+            fetchProfile: { .failure(.unknown) }
         )
     }
     

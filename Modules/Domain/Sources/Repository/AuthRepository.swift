@@ -14,6 +14,8 @@ public struct AuthRepository: Sendable {
     public var linkApple: @Sendable (_ request: AppleSignInRequest) async -> Result<Void, DomainError> = { _ in .failure(.unknown) }
     /// 이미 연동된 Apple 계정으로 로그인한다.
     public var signInWithApple: @Sendable (_ request: AppleSignInRequest) async -> Result<Void, DomainError> = { _ in .failure(.unknown) }
+    /// 회원 정보 조회
+    public var fetchProfile: @Sendable () async -> Result<Profile, DomainError> = { .failure(.unknown) }
 }
 
 extension DependencyValues {
@@ -29,6 +31,7 @@ extension AuthRepository: TestDependencyKey {
         hasToken: { true },
         signInAnonymously: { .success(()) },
         linkApple: { _ in .success(()) },
-        signInWithApple: { _ in .success(()) }
+        signInWithApple: { _ in .success(()) },
+        fetchProfile: { .success((Profile.mock)) },
     )
 }

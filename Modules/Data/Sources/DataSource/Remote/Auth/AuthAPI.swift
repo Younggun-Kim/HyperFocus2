@@ -28,7 +28,6 @@ enum AuthAPI {
     }
 
     /// 익명 계정에 Apple 계정을 연동한다.
-    /// 원본 앱과 같이 익명 토큰을 붙여 보낸다(`requiresAuth` 기본값). UseCase가 익명 로그인을 먼저 끝낸다.
     struct LinkApple: APIEndpoint, Equatable {
         typealias Response = TokenResponseDTO
 
@@ -48,5 +47,12 @@ enum AuthAPI {
         var path: String { "/api/v1/auth/login/apple" }
         var method: HTTPMethod { .post }
         var body: (any Encodable & Sendable)? { request }
+    }
+
+    struct Me: APIEndpoint, Equatable {
+        typealias Response = ProfileResponseDTO
+
+        var path: String { "/api/v1/auth/me" }
+        var method: HTTPMethod { .get }
     }
 }
