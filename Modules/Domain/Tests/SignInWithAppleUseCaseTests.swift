@@ -34,7 +34,8 @@ struct SignInWithAppleUseCaseTests {
             },
             fetchProfile: { .failure(.unknown) },
             logout: { .failure(.unknown) },
-            withdraw: { .failure(.unknown) }
+            withdraw: { .failure(.unknown) },
+            sessionExpired: { AsyncStream { $0.finish() } }
         )
     }
     
