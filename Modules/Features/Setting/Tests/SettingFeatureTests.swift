@@ -55,7 +55,7 @@ struct SettingFeatureTests {
 
         await store.send(.onAppear)
         await store.receive(.settingLoadFailed(.offline)) {
-            $0.destination = .alert(AlertState.settingFailure(.offline, action: .load)!)
+            $0.destination = .alert(AlertState.settingLoadFailure(.offline)!)
         }
         #expect(store.state.setting == .default)
     }
@@ -134,7 +134,7 @@ struct SettingFeatureTests {
         }
         await store.receive(.settingSaveFailed(.unknown)) {
             $0.setting = self.stored
-            $0.destination = .alert(AlertState.settingFailure(.unknown, action: .save)!)
+            $0.destination = .alert(AlertState.settingSaveFailure(.unknown)!)
         }
     }
 

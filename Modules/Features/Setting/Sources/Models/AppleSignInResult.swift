@@ -1,7 +1,6 @@
 import AuthenticationServices
 import Domain
 import Foundation
-import os
 
 /// Sign in with Apple 결과에서 Reducer가 쓸 값만 꺼낸 것.
 /// `ASAuthorization`은 `Sendable`·`Equatable`이 아니라 Action에 그대로 담을 수 없다.
@@ -72,9 +71,4 @@ extension AppleSignInResult {
             self = .failed(code: (error as NSError).code)
         }
     }
-}
-
-extension Logger {
-    /// Setting 모듈 공통 로거. subsystem은 번들 ID, category는 모듈 이름
-    static let setting = Logger(subsystem: Bundle.main.bundleIdentifier ?? "com.hyperfocus.timer", category: "Setting")
 }
