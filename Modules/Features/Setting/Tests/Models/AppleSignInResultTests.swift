@@ -44,7 +44,7 @@ struct SettingAppleSignInTests {
         userID: "test-user", identityToken: "test-token", authorizationCode: "test-code", name: nil, email: nil
     )
 
-    @Test func 인증되면_UseCase로_보내고_끝나면_로그인_중을_푼다() async {
+    @Test func 인증되면_UseCase로_보내고_끝나면_계정이_바뀌었다고_알린다() async {
         let received = LockIsolated<AppleSignInRequest?>(nil)
         let store = TestStore(initialState: SettingFeature.State()) {
             SettingFeature()
@@ -61,6 +61,7 @@ struct SettingAppleSignInTests {
         await store.receive(.appleSignInSucceeded) {
             $0.isSigningIn = false
         }
+        await store.receive(.delegate(.accountChanged))
         #expect(received.value == credential.signInRequest)
     }
 

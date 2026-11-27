@@ -23,11 +23,20 @@ public struct SettingFeature {
         var savedSetting: AppSetting
         /// Apple 로그인 요청을 서버에 보내는 중. 버튼을 또 눌러도 한 번만 보낸다.
         var isSigningIn = false
+        /// 지금 로그인된 계정. 소유자가 넘겨준 참조라 여기서는 읽기만 한다.
+        @Shared var profile: Profile?
         @Presents var destination: Destination.State?
 
-        public init(setting: AppSetting = .default) {
+        /// Apple 계정으로 로그인했을 때만 값이 있다.
+        var email: String? {
+            guard let profile, profile.isAppleUser else { return nil }
+            return profile.email
+        }
+
+        public init(setting: AppSetting = .default, profile: Shared<Profile?> = Shared(value: nil)) {
             self.setting = setting
             self.savedSetting = setting
+            self._profile = profile
         }
     }
 
@@ -43,6 +52,13 @@ public struct SettingFeature {
         case settingSaved(AppSetting)
         case settingSaveFailed(DomainError)
         case destination(PresentationAction<Destination.Action>)
+        case delegate(Delegate)
+
+        @CasePathable
+        public enum Delegate: Equatable {
+            /// 로그인된 계정이 바뀌었다.
+            case accountChanged
+        }
     }
 
     enum CancelID {
@@ -145,8 +161,7 @@ public struct SettingFeature {
             case .appleSignInSucceeded:
                 state.isSigningIn = false
                 Logger.setting.info("Apple 로그인 완료")
-                // TODO: 계정 정보(/auth/me)를 불러와 AppleLoginView에 email을 보여 준다.
-                return .none
+                return .send(.delegate(.accountChanged))
 
             case let .appleSignInFailed(error):
                 state.isSigningIn = false
@@ -158,7 +173,7 @@ public struct SettingFeature {
                 state.destination = nil
                 return .none
 
-            case .destination:
+            case .destination, .delegate:
                 return .none
             }
         }
