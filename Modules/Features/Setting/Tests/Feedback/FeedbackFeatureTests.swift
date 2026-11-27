@@ -3,6 +3,8 @@ import Domain
 import Testing
 @testable import Setting
 
+/// `Result<Void, _>`의 `.success`/`.failure`까지 내려가는 key path는 Swift 6.4.2 컴파일러가 IRGen에서 크래시한다.
+/// 그래서 `\.effect.sendResponse`까지만 맞추고 결과는 상태 변화로 검증한다.
 @MainActor
 struct FeedbackFeatureTests {
     @Test func 카테고리를_누르면_선택이_바뀐다() async {
@@ -10,7 +12,7 @@ struct FeedbackFeatureTests {
             FeedbackFeature()
         }
 
-        await store.send(.categoryTapped(.bugReport)) {
+        await store.send(.view(.categoryTapped(.bugReport))) {
             $0.category = .bugReport
         }
     }
@@ -21,7 +23,7 @@ struct FeedbackFeatureTests {
         }
         let longText = String(repeating: "a", count: 501)
 
-        await store.send(.textChanged(longText)) {
+        await store.send(.view(.textChanged(longText))) {
             $0.text = String(repeating: "a", count: 500)
         }
     }
@@ -33,7 +35,7 @@ struct FeedbackFeatureTests {
         }
 
         #expect(store.state.canSend == false)
-        await store.send(.sendTapped)
+        await store.send(.view(.sendTapped))
     }
 
     @Test func 전송에_성공하면_부모에게_알린다() async {
@@ -49,13 +51,13 @@ struct FeedbackFeatureTests {
             }
         }
 
-        await store.send(.sendTapped) {
+        await store.send(.view(.sendTapped)) {
             $0.isSending = true
         }
-        await store.receive(.sendSucceeded) {
+        await store.receive(\.effect.sendResponse) {
             $0.isSending = false
         }
-        await store.receive(.delegate(.sent))
+        await store.receive(\.delegate.sent)
         #expect(sent.value?.0 == .bugReport)
         #expect(sent.value?.1 == "버그 있어요")
     }
@@ -67,10 +69,10 @@ struct FeedbackFeatureTests {
             $0.sendFeedbackUseCase.execute = { _, _ in .failure(.invalid) }
         }
 
-        await store.send(.sendTapped) {
+        await store.send(.view(.sendTapped)) {
             $0.isSending = true
         }
-        await store.receive(.sendFailed(.invalid)) {
+        await store.receive(\.effect.sendResponse) {
             $0.isSending = false
             $0.alert = AlertState {
                 TextState("Failed to send feedback.")
@@ -90,10 +92,10 @@ struct FeedbackFeatureTests {
             $0.sendFeedbackUseCase.execute = { _, _ in .failure(.offline) }
         }
 
-        await store.send(.sendTapped) {
+        await store.send(.view(.sendTapped)) {
             $0.isSending = true
         }
-        await store.receive(.sendFailed(.offline)) {
+        await store.receive(\.effect.sendResponse) {
             $0.isSending = false
             $0.alert = AlertState {
                 TextState("Failed to send feedback.")
@@ -112,10 +114,10 @@ struct FeedbackFeatureTests {
             $0.sendFeedbackUseCase.execute = { _, _ in .failure(.cancelled) }
         }
 
-        await store.send(.sendTapped) {
+        await store.send(.view(.sendTapped)) {
             $0.isSending = true
         }
-        await store.receive(.sendFailed(.cancelled)) {
+        await store.receive(\.effect.sendResponse) {
             $0.isSending = false
         }
     }
@@ -128,7 +130,7 @@ struct FeedbackFeatureTests {
             $0.dismiss = DismissEffect { isDismissed.setValue(true) }
         }
 
-        await store.send(.closeTapped)
+        await store.send(.view(.closeTapped))
         #expect(isDismissed.value)
     }
 }

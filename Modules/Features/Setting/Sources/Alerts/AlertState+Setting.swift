@@ -47,6 +47,11 @@ extension AlertState where Action == Never {
         guard !error.isSilentForSetting else { return nil }
         return .failure(title: "Couldn't save your settings.", error: error)
     }
+
+    /// 피드백 전송 실패 알림. 입력한 내용은 그대로 두므로 다시 보내면 된다.
+    static func feedbackSendFailure(_ error: DomainError) -> Self? {
+        .failure(title: "Failed to send feedback.", error: error)
+    }
 }
 
 private extension DomainError {

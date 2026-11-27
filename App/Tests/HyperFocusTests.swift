@@ -51,7 +51,7 @@ struct RootFeatureTests {
             $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
-        await store.send(.onAppear)
+        await store.send(.view(.onAppear))
         await store.receive(\.effect.fetchProfileResponse) {
             $0.isSignInChecked = true
             $0.$profile.withLock { $0 = .mock }
@@ -77,7 +77,7 @@ struct RootFeatureTests {
         }
         #expect(store.state.isLaunching)
 
-        await store.send(.onAppear)
+        await store.send(.view(.onAppear))
         await store.receive(\.effect.fetchProfileResponse) {
             $0.isSignInChecked = true
             $0.$profile.withLock { $0 = .mock }
@@ -101,7 +101,7 @@ struct RootFeatureTests {
         await store.send(.splash(.delegate(.finished))) {
             $0.isSplashFinished = true
         }
-        await store.send(.onAppear)
+        await store.send(.view(.onAppear))
         await store.receive(\.effect.fetchProfileResponse) {
             $0.isSignInChecked = true
             $0.needsSignInRetry = true
@@ -109,7 +109,7 @@ struct RootFeatureTests {
         #expect(!store.state.isLaunching)
         #expect(fetchCount.value == 0)
 
-        await store.send(.sceneActivated) {
+        await store.send(.view(.sceneActivated)) {
             $0.needsSignInRetry = false
         }
         await store.receive(\.effect.fetchProfileResponse) {
@@ -119,7 +119,7 @@ struct RootFeatureTests {
         #expect(fetchCount.value == 1)
 
         // 성공한 뒤에는 다시 활성화돼도 요청하지 않는다. 요청하면 빈 배열에서 꺼내다 실패한다.
-        await store.send(.sceneActivated)
+        await store.send(.view(.sceneActivated))
     }
 
     @Test func 프로필_조회에_실패해도_메인으로_넘어가고_다시_활성화되면_재시도한다() async {
@@ -134,7 +134,7 @@ struct RootFeatureTests {
         await store.send(.splash(.delegate(.finished))) {
             $0.isSplashFinished = true
         }
-        await store.send(.onAppear)
+        await store.send(.view(.onAppear))
         await store.receive(\.effect.fetchProfileResponse) {
             $0.isSignInChecked = true
             $0.needsSignInRetry = true
@@ -142,7 +142,7 @@ struct RootFeatureTests {
         #expect(!store.state.isLaunching)
         #expect(store.state.profile == nil)
 
-        await store.send(.sceneActivated) {
+        await store.send(.view(.sceneActivated)) {
             $0.needsSignInRetry = false
         }
         await store.receive(\.effect.fetchProfileResponse) {
@@ -177,7 +177,7 @@ struct RootFeatureTests {
             RootFeature()
         }
 
-        await store.send(.tabSelected(.log)) {
+        await store.send(.view(.tabSelected(.log))) {
             $0.selectedTab = .log
         }
     }
