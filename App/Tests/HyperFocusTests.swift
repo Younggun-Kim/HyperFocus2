@@ -62,6 +62,7 @@ struct RootFeatureTests {
             RootFeature()
         } withDependencies: {
             $0.ensureSignedInUseCase.execute = { .success(()) }
+            $0.ignoreLogPrefetch()
             $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
@@ -70,6 +71,7 @@ struct RootFeatureTests {
             $0.isSignInChecked = true
             $0.$profile.withLock { $0 = .mock }
         }
+        await store.receiveLogPrefetch()
         #expect(store.state.isLaunching)
 
         await store.send(.splash(.delegate(.finished))) {
@@ -83,6 +85,7 @@ struct RootFeatureTests {
             RootFeature()
         } withDependencies: {
             $0.ensureSignedInUseCase.execute = { .success(()) }
+            $0.ignoreLogPrefetch()
             $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
@@ -96,6 +99,7 @@ struct RootFeatureTests {
             $0.isSignInChecked = true
             $0.$profile.withLock { $0 = .mock }
         }
+        await store.receiveLogPrefetch()
         #expect(!store.state.isLaunching)
     }
 
@@ -106,6 +110,7 @@ struct RootFeatureTests {
             RootFeature()
         } withDependencies: {
             $0.ensureSignedInUseCase.execute = { results.withValue { $0.removeFirst() } }
+            $0.ignoreLogPrefetch()
             $0.fetchProfileUseCase.execute = {
                 fetchCount.withValue { $0 += 1 }
                 return .success(.mock)
@@ -129,6 +134,7 @@ struct RootFeatureTests {
         await store.receive(\.effect.fetchProfileResponse) {
             $0.$profile.withLock { $0 = .mock }
         }
+        await store.receiveLogPrefetch()
         #expect(results.isEmpty)
         #expect(fetchCount.value == 1)
 
@@ -142,6 +148,7 @@ struct RootFeatureTests {
             RootFeature()
         } withDependencies: {
             $0.ensureSignedInUseCase.execute = { .success(()) }
+            $0.ignoreLogPrefetch()
             $0.fetchProfileUseCase.execute = { results.withValue { $0.removeFirst() } }
         }
 
@@ -162,6 +169,30 @@ struct RootFeatureTests {
         await store.receive(\.effect.fetchProfileResponse) {
             $0.$profile.withLock { $0 = .mock }
         }
+        await store.receiveLogPrefetch()
+    }
+
+    @Test func 프로필을_받으면_기록_요약을_미리_받는다() async {
+        let fetchCount = LockIsolated(0)
+        let store = TestStore(initialState: .updateChecked) {
+            RootFeature()
+        } withDependencies: {
+            $0.ensureSignedInUseCase.execute = { .success(()) }
+            $0.fetchProfileUseCase.execute = { .success(.mock) }
+            $0.fetchSessionLogDashboardUseCase.execute = {
+                fetchCount.withValue { $0 += 1 }
+                return .failure(.cancelled)
+            }
+        }
+
+        await store.send(.view(.onAppear))
+        await store.receive(\.effect.fetchProfileResponse) {
+            $0.isSignInChecked = true
+            $0.$profile.withLock { $0 = .mock }
+        }
+        await store.receiveLogPrefetch()
+        // 기록 탭을 열지 않았는데도 요청이 나갔다.
+        #expect(fetchCount.value == 1)
     }
 
     // MARK: - 프로필 공유
@@ -173,6 +204,7 @@ struct RootFeatureTests {
         let store = TestStore(initialState: state) {
             RootFeature()
         } withDependencies: {
+            $0.ignoreLogPrefetch()
             $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
@@ -180,6 +212,7 @@ struct RootFeatureTests {
         await store.send(.logPath(.element(id: 0, action: .setting(.delegate(.accountChanged(Profile.mock)))))) {
             $0.$profile.withLock { $0 = .mock }
         }
+        await store.receiveLogPrefetch()
         #expect(store.state.logPath[id: 0] == .setting(SettingFeature.State(profile: Shared(value: .mock))))
     }
 
@@ -190,6 +223,7 @@ struct RootFeatureTests {
         let store = TestStore(initialState: state) {
             RootFeature()
         } withDependencies: {
+            $0.ignoreLogPrefetch()
             $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
@@ -197,6 +231,7 @@ struct RootFeatureTests {
         await store.receive(\.effect.fetchProfileResponse) {
             $0.$profile.withLock { $0 = .mock }
         }
+        await store.receiveLogPrefetch()
     }
 
     // MARK: - 로그아웃
@@ -225,6 +260,7 @@ struct RootFeatureTests {
                 signedIn.setValue(true)
                 return .success(())
             }
+            $0.ignoreLogPrefetch()
             $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
@@ -236,6 +272,7 @@ struct RootFeatureTests {
         await store.receive(\.effect.fetchProfileResponse) {
             $0.$profile.withLock { $0 = .mock }
         }
+        await store.receiveLogPrefetch()
         #expect(signedIn.value)
     }
 
@@ -263,6 +300,7 @@ struct RootFeatureTests {
                 for await _ in signInGate { break }
                 return .success(())
             }
+            $0.ignoreLogPrefetch()
             $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
@@ -279,6 +317,7 @@ struct RootFeatureTests {
         await store.receive(\.effect.fetchProfileResponse) {
             $0.$profile.withLock { $0 = .mock }
         }
+        await store.receiveLogPrefetch()
         #expect(signedIn.value)
 
         // 화면이 사라지면 구독도 끝난다.
@@ -379,6 +418,22 @@ struct RootFeatureTests {
 }
 
 // MARK: - Helpers
+
+private extension DependencyValues {
+    /// 기록 요약을 미리 받는 요청이 상태를 바꾸지 않게 한다. 프로필 흐름을 보는 테스트에서 쓴다.
+    mutating func ignoreLogPrefetch() {
+        fetchSessionLogDashboardUseCase.execute = { .failure(.cancelled) }
+    }
+}
+
+@MainActor
+private extension TestStore where State == RootFeature.State, Action == RootFeature.Action {
+    /// 프로필을 받은 뒤 기록 요약을 미리 받는 흐름. `ignoreLogPrefetch()`와 함께 쓴다.
+    func receiveLogPrefetch() async {
+        await receive(\.log.prefetch)
+        await receive(\.log.effect.dashboardResponse)
+    }
+}
 
 private extension RootFeature.State {
     /// 업데이트 확인을 마친 상태. 시작 흐름 테스트가 로그인 확인만 보게 한다.

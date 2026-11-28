@@ -82,6 +82,18 @@ struct SessionLogHomeFeatureTests {
         #expect(store.state.isEmpty)
     }
 
+    @Test func 미리_받기는_화면_없이_요약을_불러온다() async {
+        let dashboard = SessionLogDashboard(isEmpty: false, todayFocusText: "25m")
+        let store = makeStore { .success(dashboard) }
+
+        // 화면이 보일 때와 달리 오늘 칸을 미리 그리지 않는다. 응답이 오면 그래프를 만든다.
+        await store.send(.prefetch)
+        await store.receive(\.effect.dashboardResponse.success) {
+            $0.dashboard = dashboard
+            $0.chart = WeeklyChart(week: [], today: Self.now, timeZone: Self.utc)
+        }
+    }
+
     @Test func 불러오기에_실패하면_앞서_받은_요약을_두고_토스트로_알린다() async {
         var state = SessionLogHomeFeature.State()
         state.dashboard = SessionLogDashboard(isEmpty: false, todayFocusText: "25m")

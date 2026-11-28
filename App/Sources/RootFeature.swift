@@ -152,7 +152,7 @@ struct RootFeature {
                 // 설정 화면이 새 프로필을 받아 왔으면 그대로 쓰고, 받지 못했으면 여기서 다시 불러온다.
                 guard let profile else { return fetchProfile() }
                 state.$profile.withLock { $0 = profile }
-                return .none
+                return .send(.log(.prefetch))
 
             case .logPath(.element(id: _, action: .setting(.delegate(.logout)))):
                 state.resetForLogout()
@@ -201,10 +201,12 @@ struct RootFeature {
             switch result {
             case let .success(profile):
                 state.$profile.withLock { $0 = profile }
+                // 기록 탭을 처음 열 때 빈 화면이 보이지 않게 미리 받아 둔다.
+                return .send(.log(.prefetch))
             case .failure:
                 state.needsSignInRetry = true
+                return .none
             }
-            return .none
 
         case let .checkAppUpdateResponse(result):
             switch result {
@@ -273,6 +275,8 @@ private extension RootFeature.State {
     /// 로그아웃하면 계정을 비우고 기록 스택을 닫은 뒤 타이머 탭으로 돌아간다.
     mutating func resetForLogout() {
         $profile.withLock { $0 = nil }
+        // 이전 계정의 기록이 남아 보이지 않게 비운다.
+        log = SessionLogHomeFeature.State()
         logPath.removeAll()
         selectedTab = .timer
     }
