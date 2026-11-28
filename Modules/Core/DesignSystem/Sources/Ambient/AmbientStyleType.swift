@@ -5,7 +5,7 @@ public enum AmbientStyleType: String, Codable, Sendable, CaseIterable {
     case allBlack
     case all282828
     case all121619
-    case black
+    case input
     case white
     case blueDark
     case calmDark
@@ -35,12 +35,12 @@ extension AmbientStyleType {
     var style: AmbientStyle {
         switch self {
         case .allBlack:
-            .solid(.black)
+                .solid(.black)
         case .all282828:
-            .solid(Color(hex: 0x282828))
+                .solid(Color(hex: 0x282828))
         case .all121619:
-            .solid(Color(hex: 0x121619))
-        case .black:
+                .solid(Color(hex: 0x121619))
+        case .input:
             AmbientStyle(
                 baseColor: .black.opacity(0.7),
                 topLeftColor: Color(hex: 0x203A43),

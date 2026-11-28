@@ -14,7 +14,7 @@ public struct SplashView: View {
     }
 
     public var body: some View {
-        AmbientZStack(style: isTitle ? .black : .all121619) {
+        AmbientZStack(style: isTitle ? .input : .all121619) {
             DesignSystemAsset.Assets.splashLight.swiftUIImage
                 .offset(x: 100, y: -160)
                 .overlay(alignment: .topTrailing) {

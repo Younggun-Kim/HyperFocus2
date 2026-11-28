@@ -6,21 +6,24 @@
 //
 
 import ComposableArchitecture
+import DesignSystem
 import SwiftUI
 import Util
 
 public struct FocusHomeView: View {
     let store: StoreOf<FocusHomeFeature>
-    
+
     public init(store: StoreOf<FocusHomeFeature>) {
         self.store = store
     }
-    
+
     public var body: some View {
-        VStack(spacing: 24) {
-            Text("포커스 홈")
+        AmbientZStack(style: .input){
+            Text("Focus")
+                .foregroundStyle(
+                    DesignSystemAsset.Colors.labelPrimary.swiftUIColor
+                )
         }
-        .padding()
     }
 }
 

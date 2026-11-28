@@ -87,7 +87,10 @@ let project = Project(
     )
     + Target.feature(
         name: "FocusTimer",
-        dependencies: [.target(name: "Util")]
+        dependencies: [
+            .target(name: "Util"),
+            .target(name: "DesignSystem"),
+        ]
     )
     + Target.feature(
         name: "SessionLog",
