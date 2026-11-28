@@ -51,15 +51,9 @@ public struct AmbientZStack<Content: View>: View {
 }
 
 #Preview("black") {
-    AmbientZStack(style: .black) {
+    AmbientZStack(style: .input) {
         Text("HyperFocus")
             .font(.ComingSoon.largeTitle)
             .foregroundStyle(.white)
-    }
-}
-
-#Preview("all121619") {
-    AmbientZStack(style: .all121619) {
-        DesignSystemAsset.Assets.splashLight.swiftUIImage
     }
 }
