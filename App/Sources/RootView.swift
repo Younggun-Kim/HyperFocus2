@@ -47,6 +47,7 @@ struct RootView: View {
                     switch store.case {
                     case let .setting(store):
                         SettingView(store: store)
+                            .toolbar(.hidden, for: .tabBar)
                     }
                 }
             }
