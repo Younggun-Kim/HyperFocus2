@@ -1,10 +1,10 @@
 import Dependencies
 import DependenciesMacros
 
-/// 기기 설정을 저장하고, 서버가 확정한 값을 돌려준다.
+/// 기기 설정을 바꾼다. 바로 적용되고, 서버에는 닿을 수 있을 때 보낸다.
 @DependencyClient
 public struct UpdateSettingUseCase: Sendable {
-    public var execute: @Sendable (_ setting: AppSetting) async -> Result<AppSetting, DomainError> = { _ in .failure(.unknown) }
+    public var execute: @Sendable (_ setting: AppSetting) async -> Result<Void, DomainError> = { _ in .failure(.unknown) }
 }
 
 extension DependencyValues {

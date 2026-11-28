@@ -1,4 +1,4 @@
-/// 기기 동작 설정(사운드, 햅틱, 알람). 서버가 기준값을 가진다.
+/// 기기 동작 설정(사운드, 햅틱, 알람). 기기에 남긴 값이 기준이고, 서버와는 동기화한다.
 ///
 /// 계정마다 하나뿐인 값이라 `Identifiable`을 채택하지 않는다.
 public struct AppSetting: Sendable, Equatable {
@@ -14,6 +14,6 @@ public struct AppSetting: Sendable, Equatable {
 }
 
 extension AppSetting {
-    /// 서버 값을 받기 전에 화면이 쓰는 값
+    /// 기기에 저장된 값이 없을 때 쓰는 값. 처음 설치한 뒤 서버와 맞추기 전까지 쓰인다.
     public static let `default` = AppSetting(soundEnabled: false, hapticEnabled: false, alarmEnabled: false)
 }

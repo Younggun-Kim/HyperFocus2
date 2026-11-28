@@ -10,12 +10,6 @@ extension AlertState {
         .failure(title: "Couldn't sign in with Apple.", error: error)
     }
 
-    /// 설정 조회 실패 알림.
-    static func settingLoadFailure(_ error: DomainError) -> Self? {
-        guard !error.isSilentForSetting else { return nil }
-        return .failure(title: "Couldn't load your settings.", error: error)
-    }
-
     /// 설정 저장 실패 알림.
     static func settingSaveFailure(_ error: DomainError) -> Self? {
         guard !error.isSilentForSetting else { return nil }
@@ -50,7 +44,7 @@ extension AlertState where Action == SettingFeature.Alert {
 }
 
 private extension DomainError {
-    /// 인증은 앱 전역에서 처리하고, 저장된 설정이 없으면 기본값을 쓰면 된다.
+    /// 인증은 앱 전역에서 처리하고, 대상이 없으면 기본값을 쓰면 된다.
     var isSilentForSetting: Bool {
         switch self {
         case .unauthorized, .notFound: true

@@ -7,6 +7,7 @@
 - `HyperFocusApp.init`에서 Store를 만들기 **전에** `DataModule.bootstrap()`을 호출한다. 위치를 옮기지 않는다.
 - Feature는 `RootFeature`에서 조립하고, 화면 이동은 자식의 delegate 액션으로 처리한다.
 - 세션 만료는 `RootFeature`가 `ObserveSessionExpiredUseCase`의 `AsyncStream`을 `.task`에서 구독해서 로그아웃과 같은 흐름(계정 비우기 → 타이머 탭 → 익명 로그인)으로 보낸다. 개별 Feature에서 처리하지 않는다.
+- 로컬 우선 데이터의 동기화 시점은 `RootFeature`가 정한다. 지금은 기기 설정을 프로필을 받았을 때(로그인 직후, 계정이 바뀐 뒤)와 로그인된 채로 앱이 다시 활성화될 때 `SyncSettingUseCase`로 맞춘다. 결과는 기다리지 않는다.
 
 ## 설정과 비밀값
 

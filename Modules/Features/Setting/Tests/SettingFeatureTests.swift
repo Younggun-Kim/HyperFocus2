@@ -30,46 +30,28 @@ struct SettingFeatureTests {
         #expect(state.email == Profile.mock.email)
     }
 
-    // MARK: - 조회
+    // MARK: - 구독
 
-    @Test func 화면이_나타나면_저장된_설정을_불러온다() async {
+    @Test func 화면이_보이는_동안_저장된_설정을_따라간다() async {
+        let (stream, continuation) = AsyncStream<AppSetting>.makeStream()
         let store = TestStore(initialState: SettingFeature.State()) {
             SettingFeature()
         } withDependencies: {
-            $0.fetchSettingUseCase.execute = { [stored] in .success(stored) }
+            $0.observeSettingUseCase.execute = { stream }
         }
+        let synced = AppSetting(soundEnabled: false, hapticEnabled: true, alarmEnabled: false)
 
-        await store.send(.view(.onAppear))
-        await store.receive(\.effect.fetchSettingResponse.success, stored) {
+        let task = await store.send(.view(.task))
+        continuation.yield(stored)
+        await store.receive(\.effect.settingChanged, stored) {
             $0.setting = self.stored
-            $0.savedSetting = self.stored
         }
-    }
-
-    @Test func 불러오지_못하면_알림을_띄우고_기본값을_유지한다() async {
-        let store = TestStore(initialState: SettingFeature.State()) {
-            SettingFeature()
-        } withDependencies: {
-            $0.fetchSettingUseCase.execute = { .failure(.offline) }
+        // 다른 곳(동기화)에서 바뀐 값도 따라간다.
+        continuation.yield(synced)
+        await store.receive(\.effect.settingChanged, synced) {
+            $0.setting = synced
         }
-
-        await store.send(.view(.onAppear))
-        await store.receive(\.effect.fetchSettingResponse.failure, .offline) {
-            $0.destination = .alert(AlertState.settingLoadFailure(.offline)!)
-        }
-        #expect(store.state.setting == .default)
-    }
-
-    @Test(arguments: [DomainError.unauthorized, .notFound, .cancelled])
-    func 인증_문제나_저장된_값이_없거나_취소되면_알리지_않는다(error: DomainError) async {
-        let store = TestStore(initialState: SettingFeature.State()) {
-            SettingFeature()
-        } withDependencies: {
-            $0.fetchSettingUseCase.execute = { .failure(error) }
-        }
-
-        await store.send(.view(.onAppear))
-        await store.receive(\.effect.fetchSettingResponse.failure, error)
+        await task.cancel()
     }
 
     // MARK: - 변경
@@ -81,7 +63,7 @@ struct SettingFeatureTests {
         } withDependencies: {
             $0.updateSettingUseCase.execute = { setting in
                 saved.setValue(setting)
-                return .success(setting)
+                return .success(())
             }
         }
         var expected = stored
@@ -90,18 +72,20 @@ struct SettingFeatureTests {
         await store.send(.view(.deviceSettingChanged(type: .haptic, isOn: true))) {
             $0.setting = expected
         }
-        await store.receive(\.effect.updateSettingResponse.success, expected) {
-            $0.savedSetting = expected
-        }
+        await store.receive(\.effect.updateSettingResponse)
         #expect(saved.value == expected)
     }
 
     @Test(arguments: SettingMenuType.DeviceSetting.allCases)
     func 각_항목은_자기_값만_바꾼다(type: SettingMenuType.DeviceSetting) async {
+        let saved = LockIsolated<AppSetting?>(nil)
         let store = TestStore(initialState: SettingFeature.State()) {
             SettingFeature()
         } withDependencies: {
-            $0.updateSettingUseCase.execute = { .success($0) }
+            $0.updateSettingUseCase.execute = { setting in
+                saved.setValue(setting)
+                return .success(())
+            }
         }
         var expected = AppSetting.default
         expected[type] = true
@@ -109,9 +93,8 @@ struct SettingFeatureTests {
         await store.send(.view(.deviceSettingChanged(type: type, isOn: true))) {
             $0.setting = expected
         }
-        await store.receive(\.effect.updateSettingResponse.success, expected) {
-            $0.savedSetting = expected
-        }
+        await store.receive(\.effect.updateSettingResponse)
+        #expect(saved.value == expected)
     }
 
     @Test func 같은_값이_다시_들어오면_저장하지_않는다() async {
@@ -122,7 +105,31 @@ struct SettingFeatureTests {
         await store.send(.view(.deviceSettingChanged(type: .sound, isOn: true)))
     }
 
-    @Test func 저장에_실패하면_마지막으로_저장된_값으로_되돌린다() async {
+    @Test func 연달아_토글하면_값마다_저장한다() async {
+        let saved = LockIsolated<[AppSetting]>([])
+        let store = TestStore(initialState: SettingFeature.State()) {
+            SettingFeature()
+        } withDependencies: {
+            $0.updateSettingUseCase.execute = { setting in
+                saved.withValue { $0.append(setting) }
+                return .success(())
+            }
+        }
+        let soundOnly = AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: false)
+        let both = AppSetting(soundEnabled: true, hapticEnabled: true, alarmEnabled: false)
+
+        await store.send(.view(.deviceSettingChanged(type: .sound, isOn: true))) {
+            $0.setting = soundOnly
+        }
+        await store.receive(\.effect.updateSettingResponse)
+        await store.send(.view(.deviceSettingChanged(type: .haptic, isOn: true))) {
+            $0.setting = both
+        }
+        await store.receive(\.effect.updateSettingResponse)
+        #expect(saved.value == [soundOnly, both])
+    }
+
+    @Test func 저장에_실패하면_알림을_띄운다() async {
         let store = TestStore(initialState: SettingFeature.State(setting: stored)) {
             SettingFeature()
         } withDependencies: {
@@ -132,58 +139,23 @@ struct SettingFeatureTests {
         await store.send(.view(.deviceSettingChanged(type: .alarm, isOn: false))) {
             $0.setting.alarmEnabled = false
         }
-        await store.receive(\.effect.updateSettingResponse.failure, .unknown) {
-            $0.setting = self.stored
+        await store.receive(\.effect.updateSettingResponse) {
             $0.destination = .alert(AlertState.settingSaveFailure(.unknown)!)
         }
     }
 
-    @Test func 연달아_토글하면_마지막_값만_저장된다() async {
-        let clock = TestClock()
-        let store = TestStore(initialState: SettingFeature.State()) {
+    @Test(arguments: [DomainError.unauthorized, .notFound, .cancelled])
+    func 인증_문제나_대상이_없거나_취소되면_저장_실패를_알리지_않는다(error: DomainError) async {
+        let store = TestStore(initialState: SettingFeature.State(setting: stored)) {
             SettingFeature()
         } withDependencies: {
-            $0.updateSettingUseCase.execute = { setting in
-                try? await clock.sleep(for: .seconds(1))
-                return .success(setting)
-            }
+            $0.updateSettingUseCase.execute = { _ in .failure(error) }
         }
-        let soundOnly = AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: false)
-        let both = AppSetting(soundEnabled: true, hapticEnabled: true, alarmEnabled: false)
 
-        await store.send(.view(.deviceSettingChanged(type: .sound, isOn: true))) {
-            $0.setting = soundOnly
+        await store.send(.view(.deviceSettingChanged(type: .alarm, isOn: false))) {
+            $0.setting.alarmEnabled = false
         }
-        await store.send(.view(.deviceSettingChanged(type: .haptic, isOn: true))) {
-            $0.setting = both
-        }
-        await clock.advance(by: .seconds(1))
-        await store.receive(\.effect.updateSettingResponse.success, both) {
-            $0.savedSetting = both
-        }
-    }
-
-    @Test func 조회_중에_토글하면_늦게_온_조회_결과가_덮어쓰지_않는다() async {
-        let clock = TestClock()
-        let store = TestStore(initialState: SettingFeature.State()) {
-            SettingFeature()
-        } withDependencies: { [stored] in
-            $0.fetchSettingUseCase.execute = {
-                try? await clock.sleep(for: .seconds(1))
-                return .success(stored)
-            }
-            $0.updateSettingUseCase.execute = { .success($0) }
-        }
-        let toggled = AppSetting(soundEnabled: false, hapticEnabled: false, alarmEnabled: true)
-
-        await store.send(.view(.onAppear))
-        await store.send(.view(.deviceSettingChanged(type: .alarm, isOn: true))) {
-            $0.setting = toggled
-        }
-        await store.receive(\.effect.updateSettingResponse.success, toggled) {
-            $0.savedSetting = toggled
-        }
-        await clock.advance(by: .seconds(1))
+        await store.receive(\.effect.updateSettingResponse)
     }
 
     // MARK: - About Us
