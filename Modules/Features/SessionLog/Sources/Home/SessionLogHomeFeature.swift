@@ -30,6 +30,8 @@ public struct SessionLogHomeFeature {
     }
 
     public enum Action {
+        /// 탭에 들어오기 전에 요약을 미리 받아 둔다. 부모가 보낸다.
+        case prefetch
         case view(ViewAction)
         case effect(EffectAction)
         case delegate(Delegate)
@@ -71,6 +73,9 @@ public struct SessionLogHomeFeature {
     public var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
+            case .prefetch:
+                return fetchDashboard()
+
             case .view(let action):
                 return viewAction(&state, action)
 
