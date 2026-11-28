@@ -168,6 +168,8 @@ public struct SessionLogHomeView: View {
                 store.send(.view(.settingTapped))
             } label: {
                 DesignSystemAsset.Assets.icGear.swiftUIImage
+                    .renderingMode(.template)
+                    .foregroundStyle(DesignSystemAsset.Colors.labelPrimary.swiftUIColor)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Setting")
