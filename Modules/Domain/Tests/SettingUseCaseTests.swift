@@ -6,39 +6,62 @@ import Testing
 struct SettingUseCaseTests {
     private let stored = AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: true)
 
-    @Test func 설정을_불러오면_저장소의_값을_돌려준다() async throws {
-        let setting = try await withDependencies {
-            $0.settingRepository.fetchSetting = { [stored] in .success(stored) }
+    @Test func 설정을_구독하면_저장소의_스트림을_그대로_넘긴다() async {
+        let stream = withDependencies {
+            $0.settingRepository.observeSetting = { [stored] in
+                AsyncStream {
+                    $0.yield(stored)
+                    $0.finish()
+                }
+            }
         } operation: {
-            try await FetchSettingUseCase.liveValue.execute().get()
+            ObserveSettingUseCase.liveValue.execute()
         }
 
-        #expect(setting == stored)
+        var received: [AppSetting] = []
+        for await setting in stream {
+            received.append(setting)
+        }
+        #expect(received == [stored])
     }
 
-    @Test func 설정을_저장하면_저장소가_확정한_값을_돌려준다() async throws {
+    @Test func 설정을_바꾸면_값을_저장소에_넘긴다() async throws {
         let received = LockIsolated<AppSetting?>(nil)
-        let confirmed = AppSetting(soundEnabled: false, hapticEnabled: false, alarmEnabled: false)
 
-        let setting = try await withDependencies {
+        try await withDependencies {
             $0.settingRepository.updateSetting = { setting in
                 received.setValue(setting)
-                return .success(confirmed)
+                return .success(())
             }
         } operation: {
             try await UpdateSettingUseCase.liveValue.execute(stored).get()
         }
 
         #expect(received.value == stored)
-        #expect(setting == confirmed)
+    }
+
+    @Test func 동기화하면_계정을_저장소에_넘기고_맞춘_값을_돌려준다() async throws {
+        let received = LockIsolated<String?>(nil)
+
+        let setting = try await withDependencies {
+            $0.settingRepository.syncSetting = { [stored] accountId in
+                received.setValue(accountId)
+                return .success(stored)
+            }
+        } operation: {
+            try await SyncSettingUseCase.liveValue.execute("user-1").get()
+        }
+
+        #expect(received.value == "user-1")
+        #expect(setting == stored)
     }
 
     @Test func 저장소의_Domain_에러를_그대로_돌려준다() async {
         await #expect(throws: DomainError.offline) {
             try await withDependencies {
-                $0.settingRepository.fetchSetting = { .failure(.offline) }
+                $0.settingRepository.syncSetting = { _ in .failure(.offline) }
             } operation: {
-                try await FetchSettingUseCase.liveValue.execute().get()
+                try await SyncSettingUseCase.liveValue.execute("user-1").get()
             }
         }
     }

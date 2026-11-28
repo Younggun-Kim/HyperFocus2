@@ -37,7 +37,7 @@ public struct SettingView: View {
         .scrollIndicators(.hidden)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(DesignSystemAsset.Colors.bgPrimary.swiftUIColor.ignoresSafeArea())
-        .onAppear { store.send(.view(.onAppear)) }
+        .task { await store.send(.view(.task)).finish() }
         .toast(message: toastBinding)
         .alert($store.scope(state: \.destination?.alert, action: \.destination.alert))
         .sheet(isPresented: webPageBinding) {

@@ -12,13 +12,13 @@ struct SettingExampleApp: App {
                 try? await Task.sleep(for: .seconds(1))
                 return .success(())
             }
-            $0.settingRepository.fetchSetting = {
-                try? await Task.sleep(for: .seconds(1))
-                return .success(AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: true))
-            }
+            // 기기에 저장된 값을 흉내 낸다. 바꾼 값은 구독자에게 다시 보낸다.
+            let (stream, continuation) = AsyncStream<AppSetting>.makeStream(bufferingPolicy: .bufferingNewest(1))
+            continuation.yield(AppSetting(soundEnabled: true, hapticEnabled: false, alarmEnabled: true))
+            $0.settingRepository.observeSetting = { stream }
             $0.settingRepository.updateSetting = { setting in
-                try? await Task.sleep(for: .milliseconds(500))
-                return .success(setting)
+                continuation.yield(setting)
+                return .success(())
             }
         }
     }

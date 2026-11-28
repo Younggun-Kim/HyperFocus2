@@ -62,7 +62,7 @@ struct RootFeatureTests {
             RootFeature()
         } withDependencies: {
             $0.ensureSignedInUseCase.execute = { .success(()) }
-            $0.ignoreLogPrefetch()
+            $0.ignoreAccountPrefetch()
             $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
@@ -85,7 +85,7 @@ struct RootFeatureTests {
             RootFeature()
         } withDependencies: {
             $0.ensureSignedInUseCase.execute = { .success(()) }
-            $0.ignoreLogPrefetch()
+            $0.ignoreAccountPrefetch()
             $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
@@ -110,7 +110,7 @@ struct RootFeatureTests {
             RootFeature()
         } withDependencies: {
             $0.ensureSignedInUseCase.execute = { results.withValue { $0.removeFirst() } }
-            $0.ignoreLogPrefetch()
+            $0.ignoreAccountPrefetch()
             $0.fetchProfileUseCase.execute = {
                 fetchCount.withValue { $0 += 1 }
                 return .success(.mock)
@@ -138,7 +138,7 @@ struct RootFeatureTests {
         #expect(results.isEmpty)
         #expect(fetchCount.value == 1)
 
-        // 성공한 뒤에는 다시 활성화돼도 요청하지 않는다. 요청하면 빈 배열에서 꺼내다 실패한다.
+        // 성공한 뒤에는 다시 활성화돼도 로그인을 요청하지 않는다. 요청하면 빈 배열에서 꺼내다 실패한다.
         await store.send(.view(.sceneActivated))
     }
 
@@ -148,7 +148,7 @@ struct RootFeatureTests {
             RootFeature()
         } withDependencies: {
             $0.ensureSignedInUseCase.execute = { .success(()) }
-            $0.ignoreLogPrefetch()
+            $0.ignoreAccountPrefetch()
             $0.fetchProfileUseCase.execute = { results.withValue { $0.removeFirst() } }
         }
 
@@ -183,6 +183,7 @@ struct RootFeatureTests {
                 fetchCount.withValue { $0 += 1 }
                 return .failure(.cancelled)
             }
+            $0.syncSettingUseCase.execute = { _ in .success(.default) }
         }
 
         await store.send(.view(.onAppear))
@@ -195,6 +196,59 @@ struct RootFeatureTests {
         #expect(fetchCount.value == 1)
     }
 
+    // MARK: - 설정 동기화
+
+    @Test func 프로필을_받으면_그_계정의_설정을_서버와_맞춘다() async {
+        let synced = LockIsolated<[String]>([])
+        let store = TestStore(initialState: .updateChecked) {
+            RootFeature()
+        } withDependencies: {
+            $0.ensureSignedInUseCase.execute = { .success(()) }
+            $0.fetchProfileUseCase.execute = { .success(.mock) }
+            $0.ignoreAccountPrefetch()
+            $0.syncSettingUseCase.execute = { accountId in
+                synced.withValue { $0.append(accountId) }
+                return .success(.default)
+            }
+        }
+
+        await store.send(.view(.onAppear))
+        await store.receive(\.effect.fetchProfileResponse) {
+            $0.isSignInChecked = true
+            $0.$profile.withLock { $0 = .mock }
+        }
+        await store.receiveLogPrefetch()
+        #expect(synced.value == [Profile.mock.userId])
+    }
+
+    @Test func 로그인된_채로_다시_활성화되면_설정을_다시_맞춘다() async {
+        let synced = LockIsolated<[String]>([])
+        var state = RootFeature.State.updateChecked
+        state.$profile.withLock { $0 = .mock }
+        let store = TestStore(initialState: state) {
+            RootFeature()
+        } withDependencies: {
+            $0.syncSettingUseCase.execute = { accountId in
+                synced.withValue { $0.append(accountId) }
+                return .failure(.offline)
+            }
+        }
+
+        await store.send(.view(.sceneActivated))
+        // 실패해도 화면 상태는 그대로다. 다음 활성화 때 다시 맞춘다.
+        await store.send(.view(.sceneActivated))
+        #expect(synced.value == [Profile.mock.userId, Profile.mock.userId])
+    }
+
+    @Test func 계정이_없으면_다시_활성화돼도_설정을_맞추지_않는다() async {
+        let store = TestStore(initialState: .updateChecked) {
+            RootFeature()
+        }
+
+        // syncSettingUseCase를 부르면 testValue가 실패를 보고한다.
+        await store.send(.view(.sceneActivated))
+    }
+
     // MARK: - 프로필 공유
 
     @Test func 설정_화면은_Root의_프로필을_함께_본다() async {
@@ -204,7 +258,7 @@ struct RootFeatureTests {
         let store = TestStore(initialState: state) {
             RootFeature()
         } withDependencies: {
-            $0.ignoreLogPrefetch()
+            $0.ignoreAccountPrefetch()
             $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
@@ -223,7 +277,7 @@ struct RootFeatureTests {
         let store = TestStore(initialState: state) {
             RootFeature()
         } withDependencies: {
-            $0.ignoreLogPrefetch()
+            $0.ignoreAccountPrefetch()
             $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
@@ -260,7 +314,7 @@ struct RootFeatureTests {
                 signedIn.setValue(true)
                 return .success(())
             }
-            $0.ignoreLogPrefetch()
+            $0.ignoreAccountPrefetch()
             $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
@@ -300,7 +354,7 @@ struct RootFeatureTests {
                 for await _ in signInGate { break }
                 return .success(())
             }
-            $0.ignoreLogPrefetch()
+            $0.ignoreAccountPrefetch()
             $0.fetchProfileUseCase.execute = { .success(.mock) }
         }
 
@@ -421,14 +475,16 @@ struct RootFeatureTests {
 
 private extension DependencyValues {
     /// 기록 요약을 미리 받는 요청이 상태를 바꾸지 않게 한다. 프로필 흐름을 보는 테스트에서 쓴다.
-    mutating func ignoreLogPrefetch() {
+    /// 계정이 정해진 뒤 미리 받는 기록 요약과 설정 동기화를 아무 일 없이 끝낸다.
+    mutating func ignoreAccountPrefetch() {
         fetchSessionLogDashboardUseCase.execute = { .failure(.cancelled) }
+        syncSettingUseCase.execute = { _ in .success(.default) }
     }
 }
 
 @MainActor
 private extension TestStore where State == RootFeature.State, Action == RootFeature.Action {
-    /// 프로필을 받은 뒤 기록 요약을 미리 받는 흐름. `ignoreLogPrefetch()`와 함께 쓴다.
+    /// 프로필을 받은 뒤 기록 요약을 미리 받는 흐름. `ignoreAccountPrefetch()`와 함께 쓴다.
     func receiveLogPrefetch() async {
         await receive(\.log.prefetch)
         await receive(\.log.effect.dashboardResponse)

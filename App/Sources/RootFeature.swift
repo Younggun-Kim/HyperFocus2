@@ -97,6 +97,7 @@ struct RootFeature {
     @Dependency(\.fetchProfileUseCase) var fetchProfileUseCase
     @Dependency(\.observeSessionExpiredUseCase) var observeSessionExpiredUseCase
     @Dependency(\.checkAppUpdateUseCase) var checkAppUpdateUseCase
+    @Dependency(\.syncSettingUseCase) var syncSettingUseCase
     @Dependency(\.openURL) var openURL
 
     /// 서버가 스토어 주소를 주지 않았을 때 여는 App Store 페이지. 환경과 상관없이 같다.
@@ -152,7 +153,7 @@ struct RootFeature {
                 // 설정 화면이 새 프로필을 받아 왔으면 그대로 쓰고, 받지 못했으면 여기서 다시 불러온다.
                 guard let profile else { return fetchProfile() }
                 state.$profile.withLock { $0 = profile }
-                return .send(.log(.prefetch))
+                return accountReady(profile)
 
             case .logPath(.element(id: _, action: .setting(.delegate(.logout)))):
                 state.resetForLogout()
@@ -181,9 +182,13 @@ struct RootFeature {
             )
 
         case .sceneActivated:
-            guard state.needsSignInRetry else { return .none }
-            state.needsSignInRetry = false
-            return ensureSignedIn()
+            if state.needsSignInRetry {
+                state.needsSignInRetry = false
+                return ensureSignedIn()
+            }
+            // 다른 기기에서 바꾼 값을 받고, 오프라인에서 바꾼 값을 보낸다.
+            guard let profile = state.profile else { return .none }
+            return syncSetting(profile)
 
         case let .tabSelected(tab):
             state.selectedTab = tab
@@ -201,8 +206,7 @@ struct RootFeature {
             switch result {
             case let .success(profile):
                 state.$profile.withLock { $0 = profile }
-                // 기록 탭을 처음 열 때 빈 화면이 보이지 않게 미리 받아 둔다.
-                return .send(.log(.prefetch))
+                return accountReady(profile)
             case .failure:
                 state.needsSignInRetry = true
                 return .none
@@ -239,6 +243,22 @@ struct RootFeature {
         }
         // 로그아웃과 세션 만료가 겹쳐도 익명 로그인은 한 번만 보낸다.
         .cancellable(id: CancelID.signIn, cancelInFlight: true)
+    }
+
+    /// 계정이 정해지면 그 계정의 데이터를 맞춰 둔다.
+    private func accountReady(_ profile: Profile) -> Effect<Action> {
+        .merge(
+            // 기록 탭을 처음 열 때 빈 화면이 보이지 않게 미리 받아 둔다.
+            .send(.log(.prefetch)),
+            syncSetting(profile)
+        )
+    }
+
+    /// 결과는 기다리지 않는다. 맞춘 값은 설정을 구독하는 화면에 전달되고, 실패하면 다음 활성화 때 다시 맞춘다.
+    private func syncSetting(_ profile: Profile) -> Effect<Action> {
+        .run { _ in
+            _ = await syncSettingUseCase.execute(profile.userId)
+        }
     }
 
     private func checkAppUpdate() -> Effect<Action> {

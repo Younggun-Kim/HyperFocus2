@@ -24,10 +24,8 @@ public struct SettingFeature {
 
     @ObservableState
     public struct State: Equatable {
-        /// 화면에 보이는 값. 토글하면 저장 결과를 기다리지 않고 바로 바뀐다.
+        /// 화면에 보이는 값. 토글하면 바로 바뀌고, 기기에 저장된 값이 바뀌면 따라 바뀐다.
         var setting: AppSetting
-        /// 서버가 마지막으로 확정한 값. 저장에 실패하면 이 값으로 되돌린다.
-        var savedSetting: AppSetting
         /// Apple 로그인 요청을 보내고 새 계정의 프로필을 받는 중. 버튼을 또 눌러도 한 번만 보낸다.
         /// 프로필까지 받아야 끝난다. 그 사이 계정 카드가 로그인 버튼으로 돌아가 보이지 않게 로딩을 보여 준다.
         var isSigningIn = false
@@ -46,7 +44,6 @@ public struct SettingFeature {
 
         public init(setting: AppSetting = .default, profile: Shared<Profile?> = Shared(value: nil)) {
             self.setting = setting
-            self.savedSetting = setting
             self._profile = profile
         }
     }
@@ -60,7 +57,8 @@ public struct SettingFeature {
         /// 사용자가 화면에서 한 일.
         @CasePathable
         public enum ViewAction {
-            case onAppear
+            /// 화면이 보이는 동안 저장된 설정을 구독한다.
+            case task
             case deviceSettingChanged(type: SettingMenuType.DeviceSetting, isOn: Bool)
             case aboutUsTapped(SettingMenuType.AboutUs)
             case appleSignInCompleted(AppleSignInResult)
@@ -72,8 +70,9 @@ public struct SettingFeature {
         /// UseCase 응답.
         @CasePathable
         public enum EffectAction {
-            case fetchSettingResponse(Result<AppSetting, DomainError>)
-            case updateSettingResponse(Result<AppSetting, DomainError>)
+            /// 기기에 저장된 설정이 바뀌었다. 구독을 시작할 때도 지금 값으로 한 번 온다.
+            case settingChanged(AppSetting)
+            case updateSettingResponse(Result<Void, DomainError>)
             case signInResponse(Result<Void, DomainError>)
             case fetchProfileResponse(Result<Profile, DomainError>)
             case withdrawResponse(Result<Void, DomainError>)
@@ -89,13 +88,11 @@ public struct SettingFeature {
     }
 
     enum CancelID {
-        case load
-        case save
         case signIn
         case fetchProfile
     }
 
-    @Dependency(\.fetchSettingUseCase) var fetchSettingUseCase
+    @Dependency(\.observeSettingUseCase) var observeSettingUseCase
     @Dependency(\.updateSettingUseCase) var updateSettingUseCase
     @Dependency(\.signInWithAppleUseCase) var signInWithAppleUseCase
     @Dependency(\.fetchProfileUseCase) var fetchProfileUseCase
@@ -132,17 +129,13 @@ public struct SettingFeature {
 
     private func viewAction(_ state: inout State, _ action: Action.ViewAction) -> Effect<Action> {
         switch action {
-        case .onAppear:
-            return fetchSetting()
+        case .task:
+            return observeSetting()
 
         case let .deviceSettingChanged(type, isOn):
             guard state.setting[type] != isOn else { return .none }
             state.setting[type] = isOn
-            // 사용자가 바꾼 값이 이긴다. 늦게 도착한 조회 결과가 덮어쓰지 않게 조회를 취소한다.
-            return .merge(
-                .cancel(id: CancelID.load),
-                updateSetting(state.setting)
-            )
+            return updateSetting(state.setting)
 
         case let .aboutUsTapped(item):
             if let url = item.url {
@@ -200,22 +193,14 @@ public struct SettingFeature {
 
     private func effectAction(_ state: inout State, _ action: Action.EffectAction) -> Effect<Action> {
         switch action {
-        case let .fetchSettingResponse(result):
-            switch result {
-            case let .success(setting):
-                state.applySaved(setting)
-            case let .failure(error):
-                // 불러오지 못해도 화면은 기본값으로 쓸 수 있다.
-                state.presentAlert(.settingLoadFailure(error))
-            }
+        case let .settingChanged(setting):
+            state.setting = setting
             return .none
 
         case let .updateSettingResponse(result):
-            switch result {
-            case let .success(setting):
-                state.applySaved(setting)
-            case let .failure(error):
-                state.setting = state.savedSetting
+            // 서버에 보내지 못한 것은 실패가 아니다(다음 동기화에서 보낸다). 기기에 쓰지 못했을 때만 온다.
+            // 화면 값은 구독이 기기에 남은 값으로 맞춘다.
+            if case let .failure(error) = result {
                 state.presentAlert(.settingSaveFailure(error))
             }
             return .none
@@ -254,19 +239,20 @@ public struct SettingFeature {
         }
     }
 
-    private func fetchSetting() -> Effect<Action> {
+    /// 뷰의 `.task`가 끝나면(화면이 사라지면) 구독도 끝난다.
+    private func observeSetting() -> Effect<Action> {
         .run { send in
-            await send(.effect(.fetchSettingResponse(fetchSettingUseCase.execute())))
+            for await setting in observeSettingUseCase.execute() {
+                await send(.effect(.settingChanged(setting)))
+            }
         }
-        .cancellable(id: CancelID.load, cancelInFlight: true)
     }
 
-    /// 저장은 매번 전체 값을 보내므로, 앞선 저장을 취소하고 마지막 값만 보내도 된다.
+    /// 취소하지 않는다. 연달아 바꿔도 값마다 기기에 써야 하고, 서버에 보내는 순서는 Repository가 맞춘다.
     private func updateSetting(_ setting: AppSetting) -> Effect<Action> {
         .run { send in
             await send(.effect(.updateSettingResponse(updateSettingUseCase.execute(setting))))
         }
-        .cancellable(id: CancelID.save, cancelInFlight: true)
     }
 
     private func signIn(_ request: AppleSignInRequest) -> Effect<Action> {
@@ -301,12 +287,6 @@ public struct SettingFeature {
 extension SettingFeature.Destination.State: Equatable {}
 
 private extension SettingFeature.State {
-    /// 서버가 확정한 값을 화면 값과 기준 값에 함께 반영한다.
-    mutating func applySaved(_ setting: AppSetting) {
-        self.setting = setting
-        self.savedSetting = setting
-    }
-
     /// 알릴 필요가 없는 에러(nil)면 띄우지 않고, 지금 띄운 시트도 그대로 둔다.
     mutating func presentAlert(_ alert: AlertState<SettingFeature.Alert>?) {
         guard let alert else { return }

@@ -14,7 +14,7 @@ HyperFocus는 집중 타이머 iOS 앱이다. 이 저장소는 앱을 Tuist 기�
 | UI·상태 | SwiftUI, TCA (ComposableArchitecture) | 화면 단위는 TMA 방식 Feature 모듈 |
 | 의존성 주입 | swift-dependencies (`@DependencyClient`) | 계층 경계를 struct 클라이언트로 만든다 |
 | 네트워크 | Alamofire | CoreNetwork 안에서만 쓴다 |
-| 로컬 저장 | SwiftData + App Group 컨테이너 | 아직 코드 없음 |
+| 로컬 저장 | SwiftData + App Group 컨테이너, 작은 값은 UserDefaults | SwiftData는 아직 코드 없음. 기기 설정은 UserDefaults |
 | 테스트 | Swift Testing(유닛), XCTest(UI) | |
 | 프로젝트 | Tuist 4.216.2 (`mise.toml`), Xcode 27.2 | `.xcodeproj`는 생성물 |
 | CI | GitHub Actions (`.github/workflows/ci.yml`) | install → generate → inspect → test. **현재 일시 중지**(워크플로 비활성화) |
@@ -50,6 +50,7 @@ App ──→ Feature ──→ Domain ←── Data ──→ CoreNetwork ─�
 - Feature의 진입점은 UseCase다. 모든 Repository 앞에는 UseCase를 둔다(단순 위임이어도).
 - 화면 이동은 부모 Reducer가 자식의 delegate 액션으로 처리한다.
 - **Repository를 추가하면 `DataModule.bootstrap()`에 반드시 등록한다.** 빠뜨려도 컴파일은 통과하고 런타임에 실패한다.
+- 서버와 맞추는 사용자 데이터는 **기기에 남긴 값을 기준**으로 둔다(로컬 우선). Repository가 기기에 먼저 쓰고 서버와 동기화하며, 보내지 못한 변경은 남겨 두었다가 다음 동기화에서 보낸다. Feature는 `ObserveXxxUseCase`로 값을 구독하고 출처를 알지 않는다. 언제 동기화할지는 App의 `RootFeature`가 정한다. 첫 사례는 기기 설정(`SettingRepository`)이다.
 - 에러는 계층을 넘을 때마다 받는 쪽의 언어로 바꾼다: `APIError`(CoreNetwork) → Domain 에러(Data에서 변환, 원본 로깅) → 화면 상태와 사용자 문구(Feature). 계층 사이에서는 던지지 않고 `Result`로 돌려준다(CoreNetwork는 `Result<_, APIError>`, Repository·UseCase 포트는 `Result<_, DomainError>`). 세션 만료는 앱 전역 이벤트로 App의 `RootFeature`가 처리한다.
 
 | 로직 | 위치 |
@@ -71,7 +72,7 @@ App ──→ Feature ──→ Domain ←── Data ──→ CoreNetwork ─�
 
 ## 코드 작성
 
-- 경계는 `@DependencyClient` struct, 이름은 `XxxRepository` / `XxxUseCase`, 시그니처는 처음부터 `async`, 반환은 `Result<_, DomainError>`.
+- 경계는 `@DependencyClient` struct, 이름은 `XxxRepository` / `XxxUseCase`, 시그니처는 처음부터 `async`, 반환은 `Result<_, DomainError>`. 앱 전역 이벤트와 구독하는 값만 `AsyncStream`을 돌려준다(`Modules/Domain/CLAUDE.md`).
 - 환경별 값은 xcconfig → 빌드 설정 → Info.plist로 흘려보낸다(`App/CLAUDE.md`). API 주소는 `API_BASE_URL`.
 - 로깅은 `os.Logger`. subsystem은 번들 ID, category는 모듈 이름. 사용자 데이터와 토큰은 `privacy: .private`(기본값).
 - 유닛 테스트는 Swift Testing, UI 테스트는 XCTest. 계층별 필수 테스트는 디렉터리별 `CLAUDE.md`에 있다.
