@@ -15,5 +15,6 @@ public struct AppSetting: Sendable, Equatable {
 
 extension AppSetting {
     /// 기기에 저장된 값이 없을 때 쓰는 값. 처음 설치한 뒤 서버와 맞추기 전까지 쓰인다.
-    public static let `default` = AppSetting(soundEnabled: false, hapticEnabled: false, alarmEnabled: false)
+    /// 오프라인으로 처음 연 사용자도 집중이 끝난 것을 알 수 있게 모두 켠다.
+    public static let `default` = AppSetting(soundEnabled: true, hapticEnabled: true, alarmEnabled: true)
 }

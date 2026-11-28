@@ -79,7 +79,8 @@ struct SettingFeatureTests {
     @Test(arguments: SettingMenuType.DeviceSetting.allCases)
     func 각_항목은_자기_값만_바꾼다(type: SettingMenuType.DeviceSetting) async {
         let saved = LockIsolated<AppSetting?>(nil)
-        let store = TestStore(initialState: SettingFeature.State()) {
+        // 기본값은 모두 켜져 있으므로 하나만 끈다.
+        let store = TestStore(initialState: SettingFeature.State(setting: .default)) {
             SettingFeature()
         } withDependencies: {
             $0.updateSettingUseCase.execute = { setting in
@@ -88,9 +89,9 @@ struct SettingFeatureTests {
             }
         }
         var expected = AppSetting.default
-        expected[type] = true
+        expected[type] = false
 
-        await store.send(.view(.deviceSettingChanged(type: type, isOn: true))) {
+        await store.send(.view(.deviceSettingChanged(type: type, isOn: false))) {
             $0.setting = expected
         }
         await store.receive(\.effect.updateSettingResponse)
@@ -107,7 +108,8 @@ struct SettingFeatureTests {
 
     @Test func 연달아_토글하면_값마다_저장한다() async {
         let saved = LockIsolated<[AppSetting]>([])
-        let store = TestStore(initialState: SettingFeature.State()) {
+        let allOff = AppSetting(soundEnabled: false, hapticEnabled: false, alarmEnabled: false)
+        let store = TestStore(initialState: SettingFeature.State(setting: allOff)) {
             SettingFeature()
         } withDependencies: {
             $0.updateSettingUseCase.execute = { setting in
